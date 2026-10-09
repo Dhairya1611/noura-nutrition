@@ -1,0 +1,12 @@
+{
+  "name": "Noura Nutrition",
+  "short_name": "Noura",
+  "description": "Local-first food scanning, calorie tracking, and adaptive meal recommendations.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f4ec",
+  "theme_color": "#17362c",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
