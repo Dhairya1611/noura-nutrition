@@ -5,6 +5,10 @@ import {
   mealTypeForTime, normaliseLogDate, parseMealText, recommendNext, round1, scaleFood, totalsForDate
 } from "./logic.js";
 import { getNotificationState } from "./notifications.js";
+import {
+  cloudConfigured, createAccount, deleteCloudState, fetchCloudState, getCloudSession,
+  onCloudAuthChange, requestPasswordReset, saveCloudState, signIn, signOut, updatePassword
+} from "./cloud.js";
 
 const STORAGE_KEY = "noura-state-v1";
 const app = document.querySelector("#app");
@@ -22,24 +26,31 @@ const defaults = {
   scanStatus: null,
   scanResults: [],
   pendingFoods: [],
+  auth: { status: cloudConfigured ? "loading" : "unconfigured", mode: "signin", message: "", kind: "", recovery: false },
+  sync: { status: "offline", message: "Not signed in" },
   toast: null
 };
 
 let state = loadState();
 let toastTimer;
+let syncTimer;
+let currentUser = null;
+let authSubscription = null;
+let hydrationToken = 0;
 
 function loadState() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], toast: null };
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), toast: null };
   } catch {
     return structuredClone(defaults);
   }
 }
 
-function persist() {
+function persist({ sync = true } = {}) {
   const { profile, logs, reminders } = state;
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile, logs, reminders }));
+  if (sync && currentUser) scheduleCloudSave();
 }
 
 function targets() {
@@ -51,9 +62,31 @@ function todayTotals() {
 }
 
 function render() {
-  const shell = state.profile ? renderAppShell() : renderOnboarding();
+  let shell;
+  if (state.auth.status === "loading") shell = renderAuthLoading();
+  else if (state.auth.status === "unconfigured") shell = renderCloudSetupRequired();
+  else if (state.auth.status !== "authenticated") shell = renderAuth();
+  else shell = state.profile ? renderAppShell() : renderOnboarding();
   app.innerHTML = shell + (state.toast ? `<div class="toast ${state.toast.kind || ""}" role="status">${icon("check", 18)}<span>${escapeHtml(state.toast.message)}</span></div>` : "");
   wireAfterRender();
+}
+
+function renderAuthLoading() {
+  return `<div class="auth-shell auth-loading"><header>${brand()}<span>Secure account sync</span></header><main><div class="auth-loader">${icon("leaf", 26)}</div><h1>Opening your Noura account…</h1><p>Checking for your saved profile and meal history.</p></main></div>`;
+}
+
+function renderCloudSetupRequired() {
+  return `<div class="auth-shell"><header>${brand()}<span>Secure account sync</span></header><main class="auth-layout"><section class="auth-story"><span class="eyebrow light">Noura Cloud</span><h1>Your nutrition history, wherever you sign in.</h1><p>The app is ready for account-based storage, but its cloud connection still needs to be configured before users can create accounts.</p><div class="auth-benefits"><span>${icon("shield", 20)} Private records protected per user</span><span>${icon("pulse", 20)} Meals and progress restored on every device</span><span>${icon("spark", 20)} Existing local history migrates after login</span></div></section><article class="auth-card"><span class="eyebrow">Setup in progress</span><h2>Noura Cloud is not connected yet.</h2><p>Add the Supabase project URL and publishable key to the deployment environment, then rebuild the app.</p></article></main></div>`;
+}
+
+function renderAuth() {
+  if (state.auth.recovery) return renderPasswordRecovery();
+  const signup = state.auth.mode === "signup";
+  return `<div class="auth-shell"><header>${brand()}<span>Secure account sync</span></header><main class="auth-layout"><section class="auth-story"><span class="eyebrow light">Your plan follows you</span><h1>Eat with intention, on every device.</h1><p>Sign in to keep your profile, meal history, streaks, reminders, and progress safely attached to your account.</p><div class="auth-benefits"><span>${icon("shield", 20)} Only you can read your nutrition data</span><span>${icon("pulse", 20)} Automatic cloud backup after every change</span><span>${icon("spark", 20)} Existing browser data migrates on first login</span></div></section><article class="auth-card"><div class="auth-tabs"><button class="${signup ? "" : "active"}" data-auth-mode="signin">Sign in</button><button class="${signup ? "active" : ""}" data-auth-mode="signup">Create account</button></div><span class="eyebrow">${signup ? "Start your account" : "Welcome back"}</span><h2>${signup ? "Keep your progress for good." : "Continue your Noura journey."}</h2><p>${signup ? "Use an email address you can access. You may be asked to confirm it." : "Your saved plan and meals will load after you sign in."}</p>${state.auth.message ? `<div class="auth-message ${state.auth.kind || ""}" role="status">${escapeHtml(state.auth.message)}</div>` : ""}<form id="auth-form"><label>Email address<input type="email" name="email" autocomplete="email" placeholder="you@example.com" required></label><label>Password<input type="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" minlength="6" placeholder="At least 6 characters" required></label><button class="continue-button">${signup ? "Create my account" : "Sign in"} ${icon("arrow", 18)}</button></form>${signup ? "" : `<button class="forgot-button" data-action="forgot-password">Forgot password?</button>`}<p class="auth-privacy">By continuing, your Noura profile and nutrition history will be stored in your private cloud account. Food photos still stay on your device.</p></article></main></div>`;
+}
+
+function renderPasswordRecovery() {
+  return `<div class="auth-shell"><header>${brand()}<span>Secure account sync</span></header><main class="auth-layout"><section class="auth-story"><span class="eyebrow light">Account recovery</span><h1>Choose a new password.</h1><p>Once saved, your profile and meal history will remain attached to the same account.</p></section><article class="auth-card"><span class="eyebrow">Reset password</span><h2>Secure your Noura account.</h2>${state.auth.message ? `<div class="auth-message ${state.auth.kind || ""}" role="status">${escapeHtml(state.auth.message)}</div>` : ""}<form id="recovery-form"><label>New password<input type="password" name="password" autocomplete="new-password" minlength="6" placeholder="At least 6 characters" required></label><button class="continue-button">Save new password ${icon("check", 18)}</button></form></article></main></div>`;
 }
 
 function renderAppShell() {
@@ -73,7 +106,7 @@ function renderAppShell() {
           <strong>${getCoachNudge()}</strong>
           <button class="text-button" data-route="coach">See my next meal ${icon("arrow", 15)}</button>
         </div>
-        <p class="privacy-note">${icon("shield", 14)} Your health data stays on this device.</p>
+        <p class="privacy-note">${icon("shield", 14)} Your data syncs securely to your account.</p>
       </aside>
       <div class="app-frame">
         <header class="topbar">
@@ -297,8 +330,9 @@ function renderProfile() {
         <div class="large-avatar">${initials(state.profile.name || "You")}</div>
         <h2>${escapeHtml(state.profile.name || "Your profile")}</h2><p>${body?.name || "Balanced frame"} · ${goal?.name || "Maintain"}</p>
         <div class="profile-metrics"><span><strong>${state.profile.weight}</strong>kg</span><span><strong>${state.profile.height}</strong>cm</span><span><strong>${target.calories}</strong>kcal</span></div>
+        <div class="account-sync"><i class="${state.sync.status}"></i><span><strong>${syncLabel()}</strong>${escapeHtml(currentUser?.email || "Signed-in account")}</span></div>
         <div class="profile-actions"><button class="outline-button" data-action="restart-onboarding">Edit my plan</button><button class="logout-button" data-action="logout">${icon("logout", 16)} Log out</button></div>
-        <p class="local-session-note">Noura has no online account. Logging out clears this browser’s locally stored profile, meal history, streaks, and reminders.</p>
+        <p class="local-session-note">Logging out clears this device’s cache. Your saved profile, meals, streaks, and reminders remain in your account.</p>
       </article>
       <article class="card settings-card">
         <div class="card-title-row"><div><span class="eyebrow">Meal reminders</span><h2>A gentle nudge, before you eat.</h2></div><span class="permission-badge ${notification.code}">${notification.label}</span></div>
@@ -313,7 +347,7 @@ function renderProfile() {
         <p>This filters coach recommendations. It does not hide foods from manual search.</p>
       </article>
       <article class="card privacy-card">
-        <div class="privacy-mark">${icon("shield", 27)}</div><div><span class="eyebrow">Local-first privacy</span><h2>Your meals stay yours.</h2><p>Profile and logs are kept in this browser’s local storage. Photos are processed on-device; barcode details come from Open Food Facts.</p><button class="danger-link" data-action="reset-data">Erase all local data</button></div>
+        <div class="privacy-mark">${icon("shield", 27)}</div><div><span class="eyebrow">Account privacy</span><h2>Your meals stay yours.</h2><p>Your profile, logs, and reminders are stored in your private account and cached in this browser for speed. Row-level security limits access to the signed-in user. Food photos are still processed on-device.</p><button class="danger-link" data-action="reset-data">Delete my nutrition data</button></div>
       </article>
     </div>
   </section>`;
@@ -385,6 +419,10 @@ function brand(compact = false) {
 }
 
 function wireAfterRender() {
+  document.querySelectorAll("[data-auth-mode]").forEach(button => button.addEventListener("click", () => { state.auth.mode = button.dataset.authMode; state.auth.message = ""; state.auth.kind = ""; render(); }));
+  document.querySelector("#auth-form")?.addEventListener("submit", handleAuthSubmit);
+  document.querySelector("[data-action='forgot-password']")?.addEventListener("click", handlePasswordResetRequest);
+  document.querySelector("#recovery-form")?.addEventListener("submit", handlePasswordUpdate);
   document.querySelectorAll("[data-route]").forEach(button => button.addEventListener("click", () => { state.route = button.dataset.route; render(); scrollTo(0, 0); }));
   document.querySelectorAll("[data-scan-mode]").forEach(button => button.addEventListener("click", () => { state.scanMode = button.dataset.scanMode; state.scanStatus = null; state.scanResults = []; state.pendingFoods = []; render(); }));
   document.querySelectorAll("[data-body-type]").forEach(button => button.addEventListener("click", () => { state.onboarding.bodyType = button.dataset.bodyType; render(); }));
@@ -425,6 +463,218 @@ function wireAfterRender() {
   document.querySelector("[data-action='restart-onboarding']")?.addEventListener("click", () => { state.onboarding = { ...state.profile }; state.onboardingStep = 1; state.profile = null; render(); });
   document.querySelector("[data-action='logout']")?.addEventListener("click", logout);
   document.querySelector("[data-action='reset-data']")?.addEventListener("click", resetData);
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const email = String(form.get("email") || "").trim();
+  const password = String(form.get("password") || "");
+  const mode = state.auth.mode;
+  state.auth.message = mode === "signup" ? "Creating your secure account…" : "Signing you in…";
+  state.auth.kind = "working";
+  render();
+
+  try {
+    const data = mode === "signup" ? await createAccount(email, password) : await signIn(email, password);
+    if (data.session?.user) {
+      if (currentUser?.id !== data.session.user.id) await hydrateUser(data.session.user);
+    } else {
+      state.auth.status = "anonymous";
+      state.auth.message = "Account created. Check your email to confirm it, then return here and sign in.";
+      state.auth.kind = "success";
+      state.auth.mode = "signin";
+      render();
+    }
+  } catch (error) {
+    state.auth.status = "anonymous";
+    state.auth.message = friendlyAuthError(error);
+    state.auth.kind = "error";
+    render();
+  }
+}
+
+async function handlePasswordResetRequest() {
+  const emailInput = document.querySelector("#auth-form input[name='email']");
+  const email = emailInput?.value.trim();
+  if (!email || !emailInput.checkValidity()) {
+    emailInput?.reportValidity();
+    return;
+  }
+  try {
+    await requestPasswordReset(email);
+    state.auth.message = "Password reset email sent. Open its link on this device to choose a new password.";
+    state.auth.kind = "success";
+  } catch (error) {
+    state.auth.message = friendlyAuthError(error);
+    state.auth.kind = "error";
+  }
+  render();
+}
+
+async function handlePasswordUpdate(event) {
+  event.preventDefault();
+  const password = String(new FormData(event.currentTarget).get("password") || "");
+  state.auth.message = "Saving your new password…";
+  state.auth.kind = "working";
+  render();
+  try {
+    await updatePassword(password);
+    state.auth.recovery = false;
+    if (currentUser) await hydrateUser(currentUser);
+    else {
+      state.auth.status = "anonymous";
+      state.auth.message = "Password updated. Sign in with your new password.";
+      state.auth.kind = "success";
+      render();
+    }
+  } catch (error) {
+    state.auth.message = friendlyAuthError(error);
+    state.auth.kind = "error";
+    render();
+  }
+}
+
+function cloudPayload() {
+  return {
+    profile: state.profile,
+    logs: Array.isArray(state.logs) ? state.logs : [],
+    reminders: Array.isArray(state.reminders) ? state.reminders : DEFAULT_REMINDERS
+  };
+}
+
+function hasLocalNutritionData(value = state) {
+  return Boolean(value.profile || value.logs?.length);
+}
+
+async function hydrateUser(user) {
+  const token = ++hydrationToken;
+  const localSnapshot = cloudPayload();
+  currentUser = user;
+  state.auth = { ...state.auth, status: "loading", user, message: "", kind: "", recovery: false };
+  render();
+
+  try {
+    const cloudState = await fetchCloudState(user.id);
+    if (token !== hydrationToken) return;
+    if (cloudState) {
+      state.profile = cloudState.profile || null;
+      state.logs = Array.isArray(cloudState.logs) ? cloudState.logs : [];
+      state.reminders = Array.isArray(cloudState.reminders) && cloudState.reminders.length ? cloudState.reminders : structuredClone(DEFAULT_REMINDERS);
+      state.sync = { status: "synced", message: "Restored from your account" };
+    } else if (hasLocalNutritionData(localSnapshot)) {
+      await saveCloudState(user.id, localSnapshot);
+      if (token !== hydrationToken) return;
+      state.sync = { status: "synced", message: "Existing data moved to your account" };
+    } else {
+      state.profile = null;
+      state.logs = [];
+      state.reminders = structuredClone(DEFAULT_REMINDERS);
+      state.sync = { status: "synced", message: "Account ready" };
+    }
+    state.auth = { status: "authenticated", mode: "signin", message: "", kind: "", recovery: false, user };
+    persist({ sync: false });
+    render();
+  } catch (error) {
+    if (token !== hydrationToken) return;
+    state.auth = { status: "authenticated", mode: "signin", message: "", kind: "", recovery: false, user };
+    state.sync = { status: "error", message: friendlyAuthError(error) };
+    render();
+    showToast("Signed in, but cloud data could not be loaded. Check the connection before adding meals.", "error");
+  }
+}
+
+function scheduleCloudSave() {
+  if (!currentUser) return;
+  clearTimeout(syncTimer);
+  state.sync = { status: "saving", message: "Saving changes…" };
+  updateSyncIndicator();
+  syncTimer = setTimeout(() => saveCurrentState(), 450);
+}
+
+async function saveCurrentState() {
+  if (!currentUser) return true;
+  clearTimeout(syncTimer);
+  syncTimer = null;
+  const userId = currentUser.id;
+  try {
+    await saveCloudState(userId, cloudPayload());
+    if (currentUser?.id !== userId) return false;
+    state.sync = { status: "synced", message: "Saved to your account" };
+    updateSyncIndicator();
+    return true;
+  } catch (error) {
+    if (currentUser?.id !== userId) return false;
+    state.sync = { status: "error", message: friendlyAuthError(error) };
+    updateSyncIndicator();
+    return false;
+  }
+}
+
+function updateSyncIndicator() {
+  const container = document.querySelector(".account-sync");
+  if (!container) return;
+  const dot = container.querySelector("i");
+  const label = container.querySelector("strong");
+  if (dot) dot.className = state.sync.status;
+  if (label) label.textContent = syncLabel();
+}
+
+function syncLabel() {
+  if (state.sync.status === "saving") return "Saving to Noura Cloud";
+  if (state.sync.status === "error") return "Cloud sync needs attention";
+  return "Saved to Noura Cloud";
+}
+
+function friendlyAuthError(error) {
+  const message = error?.message || "Please try again.";
+  if (/invalid login credentials/i.test(message)) return "The email or password is incorrect.";
+  if (/email not confirmed/i.test(message)) return "Confirm your email first, then sign in.";
+  if (/user already registered/i.test(message)) return "An account already exists for this email. Sign in instead.";
+  if (/fetch|network/i.test(message)) return "Noura Cloud could not be reached. Check your connection and try again.";
+  if (/noura_user_data|schema cache|relation/i.test(message)) return "Noura Cloud is connected, but its private data table has not been set up yet.";
+  return message;
+}
+
+async function handleCloudAuthEvent(event, session) {
+  if (event === "INITIAL_SESSION") return;
+  if (event === "PASSWORD_RECOVERY") {
+    currentUser = session?.user || null;
+    state.auth = { status: "anonymous", mode: "signin", message: "", kind: "", recovery: true, user: currentUser };
+    render();
+    return;
+  }
+  if (event === "SIGNED_OUT") {
+    ++hydrationToken;
+    currentUser = null;
+    clearLocalNutritionCache();
+    state = structuredClone(defaults);
+    state.auth = { status: "anonymous", mode: "signin", message: "You’re logged out. Sign in again to restore your saved data.", kind: "success", recovery: false };
+    render();
+    return;
+  }
+  if (session?.user && currentUser?.id !== session.user.id) await hydrateUser(session.user);
+}
+
+async function initialiseCloud() {
+  if (!cloudConfigured) {
+    render();
+    return;
+  }
+  state.auth.status = "loading";
+  render();
+  try {
+    const session = await getCloudSession();
+    authSubscription = onCloudAuthChange(handleCloudAuthEvent);
+    if (session?.user) await hydrateUser(session.user);
+    else {
+      state.auth = { status: "anonymous", mode: "signin", message: "", kind: "", recovery: false };
+      render();
+    }
+  } catch (error) {
+    state.auth = { status: "anonymous", mode: "signin", message: friendlyAuthError(error), kind: "error", recovery: false };
+    render();
+  }
 }
 
 async function handleFoodPhoto(event) {
@@ -586,24 +836,43 @@ function notificationContext() {
   };
 }
 
-function clearNouraData() {
+function clearLocalNutritionCache() {
   for (let index = localStorage.length - 1; index >= 0; index -= 1) {
     const key = localStorage.key(index);
     if (key === STORAGE_KEY || key?.startsWith("noura-reminded-")) localStorage.removeItem(key);
   }
-  state = structuredClone(defaults);
 }
 
-function logout() {
-  if (!confirm("Log out of Noura on this device? Because Noura is local-only, this will clear your profile, meal history, streaks, and reminders from this browser.")) return;
-  clearNouraData();
-  render();
+async function logout() {
+  const saved = await saveCurrentState();
+  if (!saved) return showToast("Noura could not save your latest changes, so you were not logged out. Check your connection and try again.", "error");
+  try {
+    await signOut();
+    ++hydrationToken;
+    currentUser = null;
+    clearLocalNutritionCache();
+    state = structuredClone(defaults);
+    state.auth = { status: "anonymous", mode: "signin", message: "You’re logged out. Your data remains safely stored in your account.", kind: "success", recovery: false };
+    render();
+  } catch (error) {
+    showToast(friendlyAuthError(error), "error");
+  }
 }
 
-function resetData() {
-  if (!confirm("Erase your profile, meal history, streaks, and reminder settings from this browser?")) return;
-  clearNouraData();
-  render();
+async function resetData() {
+  if (!currentUser || !confirm("Permanently delete your profile, meal history, streaks, and reminders from Noura Cloud? Your login account will remain active.")) return;
+  try {
+    await deleteCloudState(currentUser.id);
+    clearLocalNutritionCache();
+    const user = currentUser;
+    state = structuredClone(defaults);
+    state.auth = { status: "authenticated", mode: "signin", message: "", kind: "", recovery: false, user };
+    state.sync = { status: "synced", message: "Nutrition data deleted" };
+    render();
+    showToast("Your Noura nutrition data was permanently deleted.");
+  } catch (error) {
+    showToast(`Your data could not be deleted: ${friendlyAuthError(error)}`, "error");
+  }
 }
 
 function showToast(message, kind = "") {
@@ -670,4 +939,4 @@ function icon(name, size = 20) {
 
 if ("serviceWorker" in navigator) window.addEventListener("load", () => ensureServiceWorker().catch(() => {}));
 setInterval(checkReminders, 30000);
-render();
+initialiseCloud();
