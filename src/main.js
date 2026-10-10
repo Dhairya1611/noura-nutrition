@@ -4,6 +4,7 @@ import {
   calculateDayScore, calculateTargets, chartSeries, dayKey, findFood, getStreak,
   mealTypeForTime, normaliseLogDate, parseMealText, recommendNext, round1, scaleFood, totalsForDate
 } from "./logic.js";
+import { getNotificationState } from "./notifications.js";
 
 const STORAGE_KEY = "noura-state-v1";
 const app = document.querySelector("#app");
@@ -79,7 +80,7 @@ function renderAppShell() {
           <button class="mobile-brand" data-route="today" aria-label="Go home">${brand(true)}</button>
           <div class="topbar-date">${formatDate(new Date())}</div>
           <div class="topbar-actions">
-            <button class="icon-button" data-action="enable-notifications" aria-label="Meal reminders">${icon("bell", 20)}<span class="notification-dot"></span></button>
+            <button class="icon-button" data-action="enable-notifications" aria-label="Meal reminders">${icon("bell", 20)}<span class="notification-dot ${notificationContext().permission === "granted" ? "enabled" : ""}"></span></button>
             <button class="avatar" data-route="profile" aria-label="Profile">${initials(state.profile.name || "You")}</button>
           </div>
         </header>
@@ -286,7 +287,7 @@ function renderCoach() {
 
 function renderProfile() {
   const target = targets();
-  const notificationState = "Notification" in window ? Notification.permission : "unsupported";
+  const notification = getNotificationState(notificationContext());
   const goal = GOALS.find(item => item.id === state.profile.goal);
   const body = BODY_TYPES.find(item => item.id === state.profile.bodyType);
   return `<section class="page profile-page">
@@ -296,13 +297,15 @@ function renderProfile() {
         <div class="large-avatar">${initials(state.profile.name || "You")}</div>
         <h2>${escapeHtml(state.profile.name || "Your profile")}</h2><p>${body?.name || "Balanced frame"} · ${goal?.name || "Maintain"}</p>
         <div class="profile-metrics"><span><strong>${state.profile.weight}</strong>kg</span><span><strong>${state.profile.height}</strong>cm</span><span><strong>${target.calories}</strong>kcal</span></div>
-        <button class="outline-button" data-action="restart-onboarding">Edit my plan</button>
+        <div class="profile-actions"><button class="outline-button" data-action="restart-onboarding">Edit my plan</button><button class="logout-button" data-action="logout">${icon("logout", 16)} Log out</button></div>
+        <p class="local-session-note">Noura has no online account. Logging out clears this browser’s locally stored profile, meal history, streaks, and reminders.</p>
       </article>
       <article class="card settings-card">
-        <div class="card-title-row"><div><span class="eyebrow">Meal reminders</span><h2>A gentle nudge, before you eat.</h2></div><span class="permission-badge ${notificationState}">${notificationState}</span></div>
+        <div class="card-title-row"><div><span class="eyebrow">Meal reminders</span><h2>A gentle nudge, before you eat.</h2></div><span class="permission-badge ${notification.code}">${notification.label}</span></div>
         <p>Browser notifications are sent while Noura is open or installed and active. Exact closed-app scheduling depends on your device.</p>
+        <div class="notification-guidance ${notification.code}" role="status">${icon(notification.code === "granted" ? "check" : "bell", 19)}<div><strong>${notification.title}</strong><span>${notification.message}</span></div></div>
         <div class="reminder-list">${state.reminders.map(reminder => `<label class="reminder-row"><span><strong>${reminder.label}</strong><input type="time" value="${reminder.time}" data-reminder-time="${reminder.id}"></span><input class="switch-input" type="checkbox" data-reminder-toggle="${reminder.id}" ${reminder.enabled ? "checked" : ""}><i class="switch"></i></label>`).join("")}</div>
-        <button class="compact-button" data-action="enable-notifications">${icon("bell", 16)} Enable notifications</button>
+        <button class="compact-button" data-action="enable-notifications">${icon("bell", 16)} ${notification.action}</button>
       </article>
       <article class="card diet-card">
         <span class="eyebrow">Food preference</span><h2>What works for you?</h2>
@@ -420,6 +423,7 @@ function wireAfterRender() {
   document.querySelectorAll("[data-reminder-toggle]").forEach(input => input.addEventListener("change", () => updateReminder(input.dataset.reminderToggle, { enabled: input.checked })));
   document.querySelectorAll("[data-action='enable-notifications']").forEach(button => button.addEventListener("click", enableNotifications));
   document.querySelector("[data-action='restart-onboarding']")?.addEventListener("click", () => { state.onboarding = { ...state.profile }; state.onboardingStep = 1; state.profile = null; render(); });
+  document.querySelector("[data-action='logout']")?.addEventListener("click", logout);
   document.querySelector("[data-action='reset-data']")?.addEventListener("click", resetData);
 }
 
@@ -520,13 +524,20 @@ function addFoodLog(food) {
 }
 
 async function enableNotifications() {
-  if (!("Notification" in window)) return showToast("Notifications are not supported in this browser.", "error");
-  const permission = await Notification.requestPermission();
-  if (permission === "granted") {
-    showToast("Meal reminders are enabled.");
-    await sendNotification("Noura reminders are on", "I’ll gently remind you around your chosen meal times.");
-  } else showToast("Notification permission wasn’t granted.", "error");
-  render();
+  const status = getNotificationState(notificationContext());
+  state.route = "profile";
+
+  if (status.code === "blocked") return showToast("Notifications are blocked. Follow the browser steps shown on this page, then reload.", "error");
+  if (status.code === "install" || status.code === "unavailable") return showToast(status.message, "error");
+
+  try {
+    const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    if (permission !== "granted") return showToast("Permission was not enabled. Use the instructions shown on this page to try again.", "error");
+    await sendNotification("Noura reminders are on", "This test worked. I’ll gently remind you around your chosen meal times.");
+    showToast(status.code === "granted" ? "Test notification sent." : "Meal reminders are enabled and the test was sent.");
+  } catch (error) {
+    showToast(`Noura could not send the test: ${friendlyError(error)}`, "error");
+  }
 }
 
 function updateReminder(id, changes) {
@@ -547,15 +558,51 @@ async function checkReminders() {
 }
 
 async function sendNotification(title, body) {
-  const registration = await navigator.serviceWorker?.ready;
+  if (Notification.permission !== "granted") throw new Error("Notification permission is not enabled.");
+  const registration = await ensureServiceWorker();
   if (registration) return registration.showNotification(title, { body, icon: assetUrl("icon.svg"), badge: assetUrl("icon.svg"), tag: "noura-meal" });
-  new Notification(title, { body, icon: assetUrl("icon.svg") });
+  return new Notification(title, { body, icon: assetUrl("icon.svg") });
+}
+
+async function ensureServiceWorker() {
+  if (!("serviceWorker" in navigator)) return null;
+  const registration = await navigator.serviceWorker.register(assetUrl("sw.js"));
+  if (registration.active) return registration;
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("The reminder service did not become ready. Reload Noura and try again.")), 7000))
+  ]);
+}
+
+function notificationContext() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isStandalone = window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone === true;
+  return {
+    supported: "Notification" in window,
+    permission: "Notification" in window ? Notification.permission : "unsupported",
+    secureContext: window.isSecureContext,
+    isIOS,
+    isStandalone
+  };
+}
+
+function clearNouraData() {
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index);
+    if (key === STORAGE_KEY || key?.startsWith("noura-reminded-")) localStorage.removeItem(key);
+  }
+  state = structuredClone(defaults);
+}
+
+function logout() {
+  if (!confirm("Log out of Noura on this device? Because Noura is local-only, this will clear your profile, meal history, streaks, and reminders from this browser.")) return;
+  clearNouraData();
+  render();
 }
 
 function resetData() {
   if (!confirm("Erase your profile, meal history, streaks, and reminder settings from this browser?")) return;
-  localStorage.removeItem(STORAGE_KEY);
-  state = structuredClone(defaults);
+  clearNouraData();
   render();
 }
 
@@ -615,12 +662,12 @@ function escapeHtml(value = "") {
 
 function icon(name, size = 20) {
   const paths = {
-    leaf: '<path d="M18.7 3.8C12.7 3.9 7.6 6.5 6.3 11.4c-.7 2.7.6 5.3 3 6.2 3.8 1.3 7.5-1.9 8.3-5.7.4-2 .5-5 .1-7.1M5 20c1.8-5.4 5.3-8.8 10.6-11.3"/>',
+    leaf: '<path d="M18.7 3.8C12.7 3.9 7.6 6.5 6.3 11.4c-.7 2.7.6 5.3 3 6.2 3.8 1.3 7.5-1.9 8.3-5.7.4-2 .5-5 .1-7.1M5 20c1.8-5.4 5.3-8.8 10.6-11.3"/>', logout: '<path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9"/>',
     home: '<path d="m3 10 9-7 9 7v10h-6v-6H9v6H3Z"/>', scan: '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 12h8"/>', chart: '<path d="M4 19V9m6 10V5m6 14v-7m4 7H2"/>', spark: '<path d="m12 3 1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5ZM19 3v4M21 5h-4"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c.6-4.2 3.2-6 8-6s7.4 1.8 8 6"/>', bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>', arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>', shield: '<path d="M12 3 5 6v5c0 4.6 2.7 8 7 10 4.3-2 7-5.4 7-10V6Z"/><path d="m9 12 2 2 4-4"/>', type: '<path d="M5 5h14M12 5v14M8 19h8"/>', barcode: '<path d="M4 5v14M7 5v14M11 5v14M13 5v14M17 5v14M20 5v14"/>', camera: '<path d="M4 7h3l2-3h6l2 3h3v13H4Z"/><circle cx="12" cy="13" r="4"/>', check: '<path d="m5 12 4 4L19 6"/>', back: '<path d="m15 18-6-6 6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>', plate: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>', pulse: '<path d="M3 12h4l2-5 4 10 2-5h6"/>', target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>', flame: '<path d="M12 21c4 0 7-2.8 7-6.5 0-3-1.7-5.7-5.2-8.5.1 2.5-.7 4-2 4.8.1-3.1-1.4-5.7-4-7.8.1 4-3 6.6-3 11.5C4.8 18.2 8 21 12 21Z"/>'
   };
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.spark}</svg>`;
 }
 
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register(assetUrl("sw.js")).catch(() => {}));
+if ("serviceWorker" in navigator) window.addEventListener("load", () => ensureServiceWorker().catch(() => {}));
 setInterval(checkReminders, 30000);
 render();

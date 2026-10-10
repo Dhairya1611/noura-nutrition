@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateDayScore, calculateTargets, chartSeries, findFood, parseMealText, recommendNext, totalsForDate } from "../src/logic.js";
+import { getNotificationState } from "../src/notifications.js";
 
 test("calculates sustainable targets for each goal", () => {
   const profile = { basis: "female", age: 30, height: 165, weight: 65, activity: 1.375 };
@@ -56,4 +57,22 @@ test("coach respects vegan preference", () => {
 test("year chart always returns twelve months", () => {
   const series = chartSeries([], "year", { calories: 2000 }, new Date("2026-10-09"));
   assert.equal(series.length, 12);
+});
+
+test("notification state explains a blocked browser permission", () => {
+  const status = getNotificationState({ supported: true, permission: "denied", secureContext: true, isIOS: false, isStandalone: false });
+  assert.equal(status.code, "blocked");
+  assert.match(status.message, /Site settings/);
+});
+
+test("notification state requires installation on iOS", () => {
+  const status = getNotificationState({ supported: true, permission: "default", secureContext: true, isIOS: true, isStandalone: false });
+  assert.equal(status.code, "install");
+  assert.match(status.message, /Home Screen/);
+});
+
+test("notification state offers a test after permission is granted", () => {
+  const status = getNotificationState({ supported: true, permission: "granted", secureContext: true, isIOS: false, isStandalone: false });
+  assert.equal(status.code, "granted");
+  assert.equal(status.action, "Send test notification");
 });
