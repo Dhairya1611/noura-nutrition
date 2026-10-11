@@ -45,6 +45,16 @@ export async function signIn(email, password) {
   return data;
 }
 
+export async function signInWithGoogle() {
+  const redirectTo = window.location.href.split("#")[0].split("?")[0];
+  const { data, error } = await requireClient().auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo }
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function signOut() {
   const { error } = await requireClient().auth.signOut();
   if (error) throw error;

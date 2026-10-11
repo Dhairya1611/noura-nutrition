@@ -4,13 +4,15 @@ Noura is an account-synced progressive web app for food recognition, calorie and
 
 ## Accounts and permanent storage
 
-- Supabase Auth provides email/password sign-up, login, logout, and password recovery.
+- Supabase Auth provides Google OAuth plus email/password sign-up, login, logout, and password recovery.
 - Each user’s profile, meal history, and reminder settings are stored in the `noura_user_data` Postgres table.
 - Row-level security restricts every record to its authenticated owner; anonymous users cannot read or write nutrition records.
 - Browser storage is retained only as a fast local cache. Existing pre-account data is migrated into the first account that signs in on that browser.
 - Food photos are processed on-device and are not uploaded to Supabase.
 
 Create a Supabase project, run [`supabase/migrations/202610100001_noura_user_data.sql`](supabase/migrations/202610100001_noura_user_data.sql) in its SQL editor, and copy `.env.example` to `.env.local` with the project URL and publishable anon key. Never expose a Supabase service-role key in the frontend.
+
+For Google sign-in, create a Google Cloud Web OAuth client with `https://dhairya1611.github.io` as an authorized JavaScript origin and `https://<project-ref>.supabase.co/auth/v1/callback` as an authorized redirect URI. Enable Google in Supabase Authentication Providers with that client ID and secret, and keep the secret in Supabase only—never in GitHub or frontend code.
 
 ## Free AI stack
 

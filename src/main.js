@@ -7,12 +7,13 @@ import {
 import { getNotificationState } from "./notifications.js";
 import {
   cloudConfigured, createAccount, deleteCloudState, fetchCloudState, getCloudSession,
-  onCloudAuthChange, requestPasswordReset, saveCloudState, signIn, signOut, updatePassword
+  onCloudAuthChange, requestPasswordReset, saveCloudState, signIn, signInWithGoogle, signOut, updatePassword
 } from "./cloud.js";
 
 const STORAGE_KEY = "noura-state-v1";
 const app = document.querySelector("#app");
 const assetUrl = path => `${import.meta.env.BASE_URL}${String(path).replace(/^\//, "")}`;
+const authPreview = import.meta.env.DEV && new URLSearchParams(location.search).has("auth-preview");
 
 const defaults = {
   profile: null,
@@ -26,7 +27,7 @@ const defaults = {
   scanStatus: null,
   scanResults: [],
   pendingFoods: [],
-  auth: { status: cloudConfigured ? "loading" : "unconfigured", mode: "signin", message: "", kind: "", recovery: false },
+  auth: { status: authPreview ? "anonymous" : cloudConfigured ? "loading" : "unconfigured", mode: "signin", message: "", kind: "", recovery: false },
   sync: { status: "offline", message: "Not signed in" },
   toast: null
 };
@@ -82,7 +83,8 @@ function renderCloudSetupRequired() {
 function renderAuth() {
   if (state.auth.recovery) return renderPasswordRecovery();
   const signup = state.auth.mode === "signup";
-  return `<div class="auth-shell"><header>${brand()}<span>Secure account sync</span></header><main class="auth-layout"><section class="auth-story"><span class="eyebrow light">Your plan follows you</span><h1>Eat with intention, on every device.</h1><p>Sign in to keep your profile, meal history, streaks, reminders, and progress safely attached to your account.</p><div class="auth-benefits"><span>${icon("shield", 20)} Only you can read your nutrition data</span><span>${icon("pulse", 20)} Automatic cloud backup after every change</span><span>${icon("spark", 20)} Existing browser data migrates on first login</span></div></section><article class="auth-card"><div class="auth-tabs"><button class="${signup ? "" : "active"}" data-auth-mode="signin">Sign in</button><button class="${signup ? "active" : ""}" data-auth-mode="signup">Create account</button></div><span class="eyebrow">${signup ? "Start your account" : "Welcome back"}</span><h2>${signup ? "Keep your progress for good." : "Continue your Noura journey."}</h2><p>${signup ? "Use an email address you can access. You may be asked to confirm it." : "Your saved plan and meals will load after you sign in."}</p>${state.auth.message ? `<div class="auth-message ${state.auth.kind || ""}" role="status">${escapeHtml(state.auth.message)}</div>` : ""}<form id="auth-form"><label>Email address<input type="email" name="email" autocomplete="email" placeholder="you@example.com" required></label><label>Password<input type="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" minlength="6" placeholder="At least 6 characters" required></label><button class="continue-button">${signup ? "Create my account" : "Sign in"} ${icon("arrow", 18)}</button></form>${signup ? "" : `<button class="forgot-button" data-action="forgot-password">Forgot password?</button>`}<p class="auth-privacy">By continuing, your Noura profile and nutrition history will be stored in your private cloud account. Food photos still stay on your device.</p></article></main></div>`;
+  const working = state.auth.kind === "working";
+  return `<div class="auth-shell"><header>${brand()}<span>Secure account sync</span></header><main class="auth-layout"><section class="auth-story"><span class="eyebrow light">Your plan follows you</span><h1>Eat with intention, on every device.</h1><p>Sign in to keep your profile, meal history, streaks, reminders, and progress safely attached to your account.</p><div class="auth-benefits"><span>${icon("shield", 20)} Only you can read your nutrition data</span><span>${icon("pulse", 20)} Automatic cloud backup after every change</span><span>${icon("spark", 20)} Existing browser data migrates on first login</span></div></section><article class="auth-card"><div class="auth-tabs"><button class="${signup ? "" : "active"}" data-auth-mode="signin">Sign in</button><button class="${signup ? "active" : ""}" data-auth-mode="signup">Create account</button></div><span class="eyebrow">${signup ? "Start your account" : "Welcome back"}</span><h2>${signup ? "Keep your progress for good." : "Continue your Noura journey."}</h2><p>${signup ? "Create an account with Google or use an email address you can access." : "Your saved plan and meals will load after you sign in."}</p>${state.auth.message ? `<div class="auth-message ${state.auth.kind || ""}" role="status">${escapeHtml(state.auth.message)}</div>` : ""}<button class="google-auth-button" data-action="google-auth" ${working ? "disabled" : ""}>${googleMark()}<span>Continue with Google</span></button><div class="auth-divider"><span>or use email</span></div><form id="auth-form"><label>Email address<input type="email" name="email" autocomplete="email" placeholder="you@example.com" required></label><label>Password<input type="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" minlength="6" placeholder="At least 6 characters" required></label><button class="continue-button" ${working ? "disabled" : ""}>${signup ? "Create my account" : "Sign in"} ${icon("arrow", 18)}</button></form>${signup ? "" : `<button class="forgot-button" data-action="forgot-password">Forgot password?</button>`}<p class="auth-privacy">Google shares your name, email address, and profile image for sign-in. Your Noura profile and nutrition history are stored in your private cloud account. Food photos still stay on your device.</p></article></main></div>`;
 }
 
 function renderPasswordRecovery() {
@@ -418,8 +420,13 @@ function brand(compact = false) {
   return `<div class="brand ${compact ? "compact" : ""}"><span class="brand-mark">${icon("leaf", compact ? 21 : 25)}</span><strong>Noura</strong>${compact ? "" : "<small>eat with intention</small>"}</div>`;
 }
 
+function googleMark() {
+  return `<svg class="google-mark" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.6-4.1H3v2.7A10.1 10.1 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.4 14a6 6 0 0 1 0-3.9V7.4H3a10 10 0 0 0 0 9.3L6.4 14Z"/><path fill="#EA4335" d="M12 6c1.5 0 2.9.5 4 1.6l3-3A10 10 0 0 0 3 7.4l3.4 2.7A5.9 5.9 0 0 1 12 6Z"/></svg>`;
+}
+
 function wireAfterRender() {
   document.querySelectorAll("[data-auth-mode]").forEach(button => button.addEventListener("click", () => { state.auth.mode = button.dataset.authMode; state.auth.message = ""; state.auth.kind = ""; render(); }));
+  document.querySelector("[data-action='google-auth']")?.addEventListener("click", handleGoogleAuth);
   document.querySelector("#auth-form")?.addEventListener("submit", handleAuthSubmit);
   document.querySelector("[data-action='forgot-password']")?.addEventListener("click", handlePasswordResetRequest);
   document.querySelector("#recovery-form")?.addEventListener("submit", handlePasswordUpdate);
@@ -463,6 +470,20 @@ function wireAfterRender() {
   document.querySelector("[data-action='restart-onboarding']")?.addEventListener("click", () => { state.onboarding = { ...state.profile }; state.onboardingStep = 1; state.profile = null; render(); });
   document.querySelector("[data-action='logout']")?.addEventListener("click", logout);
   document.querySelector("[data-action='reset-data']")?.addEventListener("click", resetData);
+}
+
+async function handleGoogleAuth() {
+  state.auth.message = "Opening Google sign-in…";
+  state.auth.kind = "working";
+  render();
+  try {
+    await signInWithGoogle();
+  } catch (error) {
+    state.auth.status = "anonymous";
+    state.auth.message = friendlyAuthError(error);
+    state.auth.kind = "error";
+    render();
+  }
 }
 
 async function handleAuthSubmit(event) {
@@ -631,6 +652,7 @@ function friendlyAuthError(error) {
   if (/invalid login credentials/i.test(message)) return "The email or password is incorrect.";
   if (/email not confirmed/i.test(message)) return "Confirm your email first, then sign in.";
   if (/user already registered/i.test(message)) return "An account already exists for this email. Sign in instead.";
+  if (/provider is not enabled|unsupported provider/i.test(message)) return "Google sign-in is not available yet. Use email for now or try again later.";
   if (/fetch|network/i.test(message)) return "Noura Cloud could not be reached. Check your connection and try again.";
   if (/noura_user_data|schema cache|relation/i.test(message)) return "Noura Cloud is connected, but its private data table has not been set up yet.";
   return message;

@@ -330,6 +330,13 @@ p { color: var(--muted); line-height: 1.55; }
 #auth-form label, #recovery-form label { display: grid; gap: 7px; font-size: .7rem; font-weight: 800; }
 #auth-form input, #recovery-form input { width: 100%; padding: 12px 13px; border: 1px solid #cfd3ca; border-radius: 11px; background: white; }
 #auth-form .continue-button, #recovery-form .continue-button { width: 100%; margin-top: 3px; }
+.google-auth-button { width: 100%; min-height: 46px; margin-top: 20px; border: 1px solid #cfd3ca; border-radius: 11px; background: white; color: var(--ink); display: flex; align-items: center; justify-content: center; gap: 11px; font-size: .75rem; font-weight: 800; cursor: pointer; transition: border-color .2s, box-shadow .2s, background .2s; }
+.google-auth-button:hover { border-color: #8e9c95; background: #fbfcfa; box-shadow: 0 4px 14px rgba(20,40,33,.08); }
+.google-auth-button:focus-visible { outline: 3px solid rgba(88,130,113,.25); outline-offset: 2px; }
+.google-auth-button:disabled, #auth-form button:disabled { opacity: .58; cursor: wait; }
+.google-mark { width: 19px; height: 19px; flex: 0 0 auto; }
+.auth-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0 0; color: #8f9a95; font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
+.auth-divider::before, .auth-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
 .forgot-button { display: block; margin: 14px auto 0; border: 0; background: transparent; color: #46685c; font-size: .7rem; text-decoration: underline; cursor: pointer; }
 .auth-privacy { margin: 20px 0 0; padding-top: 17px; border-top: 1px solid var(--line); font-size: .62rem !important; }
 .auth-message { margin-top: 15px; padding: 11px 12px; border-radius: 10px; background: #eef2ed; color: #436054; font-size: .69rem; line-height: 1.45; }
