@@ -5,6 +5,8 @@ import { readFile } from "node:fs/promises";
 const migrationUrl = new URL("../supabase/migrations/202610100001_noura_user_data.sql", import.meta.url);
 const cloudClientUrl = new URL("../src/cloud.js", import.meta.url);
 const appClientUrl = new URL("../src/main.js", import.meta.url);
+const privacyUrl = new URL("../public/privacy.html", import.meta.url);
+const termsUrl = new URL("../public/terms.html", import.meta.url);
 
 test("cloud migration enables row-level security", async () => {
   const sql = await readFile(migrationUrl, "utf8");
@@ -32,4 +34,11 @@ test("returning from a cancelled Google sign-in restores the auth form", async (
   assert.match(source, /function resetGoogleAuthAfterReturn\(\)/);
   assert.match(source, /addEventListener\("pageshow", resetGoogleAuthAfterReturn\)/);
   assert.match(source, /state\.auth\.kind\s*=\s*""/);
+});
+
+test("public privacy and terms pages describe Noura's account data practices", async () => {
+  const [privacy, terms] = await Promise.all([readFile(privacyUrl, "utf8"), readFile(termsUrl, "utf8")]);
+  assert.match(privacy, /food photos are processed on your device/i);
+  assert.match(privacy, /Supabase/i);
+  assert.match(terms, /not medical advice/i);
 });

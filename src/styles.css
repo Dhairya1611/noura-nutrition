@@ -339,6 +339,7 @@ p { color: var(--muted); line-height: 1.55; }
 .auth-divider::before, .auth-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
 .forgot-button { display: block; margin: 14px auto 0; border: 0; background: transparent; color: #46685c; font-size: .7rem; text-decoration: underline; cursor: pointer; }
 .auth-privacy { margin: 20px 0 0; padding-top: 17px; border-top: 1px solid var(--line); font-size: .62rem !important; }
+.auth-privacy a { color: #46685c; font-weight: 800; text-underline-offset: 2px; }
 .auth-message { margin-top: 15px; padding: 11px 12px; border-radius: 10px; background: #eef2ed; color: #436054; font-size: .69rem; line-height: 1.45; }
 .auth-message.error { background: #fff0ed; color: #8c362d; }
 .auth-message.success { background: #edf8e3; color: #365b28; }
