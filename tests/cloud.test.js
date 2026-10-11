@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const migrationUrl = new URL("../supabase/migrations/202610100001_noura_user_data.sql", import.meta.url);
 const cloudClientUrl = new URL("../src/cloud.js", import.meta.url);
+const appClientUrl = new URL("../src/main.js", import.meta.url);
 
 test("cloud migration enables row-level security", async () => {
   const sql = await readFile(migrationUrl, "utf8");
@@ -24,4 +25,11 @@ test("Google OAuth returns through the current app URL", async () => {
   assert.match(source, /signInWithOAuth\(\{[\s\S]*provider:\s*"google"/);
   assert.match(source, /options:\s*\{\s*redirectTo\s*\}/);
   assert.match(source, /window\.location\.href\.split\("#"\)\[0\]\.split\("\?"\)\[0\]/);
+});
+
+test("returning from a cancelled Google sign-in restores the auth form", async () => {
+  const source = await readFile(appClientUrl, "utf8");
+  assert.match(source, /function resetGoogleAuthAfterReturn\(\)/);
+  assert.match(source, /addEventListener\("pageshow", resetGoogleAuthAfterReturn\)/);
+  assert.match(source, /state\.auth\.kind\s*=\s*""/);
 });

@@ -486,6 +486,14 @@ async function handleGoogleAuth() {
   }
 }
 
+function resetGoogleAuthAfterReturn() {
+  if (currentUser || state.auth.kind !== "working" || state.auth.message !== "Opening Google sign-in…") return;
+  state.auth.status = "anonymous";
+  state.auth.message = "";
+  state.auth.kind = "";
+  render();
+}
+
 async function handleAuthSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -960,5 +968,6 @@ function icon(name, size = 20) {
 }
 
 if ("serviceWorker" in navigator) window.addEventListener("load", () => ensureServiceWorker().catch(() => {}));
+window.addEventListener("pageshow", resetGoogleAuthAfterReturn);
 setInterval(checkReminders, 30000);
 initialiseCloud();
