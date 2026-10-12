@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateDayScore, calculateTargets, chartSeries, findFood, parseMealText, recommendNext, totalsForDate } from "../src/logic.js";
+import { FOOD_LIBRARY } from "../src/data.js";
 import { getNotificationState } from "../src/notifications.js";
 
 test("calculates sustainable targets for each goal", () => {
@@ -37,6 +38,20 @@ test("recognises a bowl of chaap and common soy spellings", () => {
   assert.equal(bowl.matched[0].servings, 1);
   assert.equal(bowl.matched[0].kcal, 246);
   assert.equal(parseMealText("2 bowls soy chap").matched[0].kcal, 492);
+});
+
+test("ships an expanded catalogue across common food groups", () => {
+  assert.ok(FOOD_LIBRARY.length >= 150);
+  const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
+  assert.deepEqual(examples.map(name => findFood(name)?.name), [
+    "Butter chicken", "Aloo paratha", "Pani puri", "Mango", "Cooked broccoli", "Sweet lassi", "Sushi roll", "Gulab jamun"
+  ]);
+});
+
+test("prefers the most specific food name over a broad alias", () => {
+  const result = parseMealText("chicken curry, caesar salad and toast");
+  assert.deepEqual(result.matched.map(food => food.id), ["chicken-curry", "caesar-salad", "bread-toast"]);
+  assert.deepEqual(result.unknown, []);
 });
 
 test("supports written and unicode fractional quantities", () => {

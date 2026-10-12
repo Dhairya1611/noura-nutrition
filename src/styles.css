@@ -194,6 +194,32 @@ p { color: var(--muted); line-height: 1.55; }
 .pending-row small, .pending-row > span { font-size: .68rem; color: var(--muted); }
 .pending-row button { border: 0; background: transparent; color: #9caaa4; font-size: 1.15rem; cursor: pointer; }
 .unknown-note { padding: 10px; border-radius: 9px; background: #fff0ed; font-size: .7rem; }
+.manual-zone > .scan-status { width: 100%; }
+.unmatched-food { margin: 13px 0 18px; padding: 15px; border: 1px solid #ead9c2; border-radius: 14px; background: #fffaf0; }
+.unmatched-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.unmatched-title h4 { margin: 2px 0 0; font-size: .92rem; }
+.unmatched-title > button { border: 0; background: transparent; color: #9caaa4; font-size: 1.15rem; cursor: pointer; }
+.lookup-help { margin: 12px 0 5px; font-size: .7rem; color: var(--muted); }
+.database-suggestions { display: grid; gap: 6px; }
+.database-suggestions > button { width: 100%; display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 9px; border: 1px solid #e7e6dc; border-radius: 10px; background: white; text-align: left; cursor: pointer; }
+.database-suggestions > button:hover { border-color: var(--ink); }
+.database-suggestions img { width: 32px; height: 32px; object-fit: cover; border-radius: 7px; }
+.database-suggestions button > span { text-align: center; }
+.database-suggestions button > div { display: grid; min-width: 0; }
+.database-suggestions strong { font-size: .74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.database-suggestions small { color: var(--muted); font-size: .62rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.custom-food-entry { margin-top: 11px; border-top: 1px solid #ece1cf; padding-top: 10px; }
+.custom-food-entry summary { color: var(--ink); font-size: .7rem; font-weight: 800; cursor: pointer; }
+.custom-food-entry form { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 10px; }
+.custom-food-entry label { display: grid; gap: 4px; color: var(--muted); font-size: .62rem; font-weight: 700; }
+.custom-food-entry input { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid #d9d8ce; border-radius: 8px; background: white; }
+.nutrition-fields { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
+.custom-food-entry form > button { grid-column: 1 / -1; border: 0; border-radius: 9px; padding: 10px; background: var(--lime); color: var(--ink); font-weight: 800; cursor: pointer; }
+@media (max-width: 620px) {
+  .custom-food-entry form { grid-template-columns: 1fr; }
+  .nutrition-fields { grid-template-columns: repeat(2, 1fr); }
+  .nutrition-fields label:last-child { grid-column: 1 / -1; }
+}
 
 .period-control { margin-bottom: 2px; }
 .insight-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }

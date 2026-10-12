@@ -27,6 +27,7 @@ const defaults = {
   scanStatus: null,
   scanResults: [],
   pendingFoods: [],
+  foodLookupToken: null,
   auth: { status: authPreview ? "anonymous" : cloudConfigured ? "loading" : "unconfigured", mode: "signin", message: "", kind: "", recovery: false },
   sync: { status: "offline", message: "Not signed in" },
   toast: null
@@ -42,7 +43,7 @@ let hydrationToken = 0;
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), toast: null };
+    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], foodLookupToken: null, auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), toast: null };
   } catch {
     return structuredClone(defaults);
   }
@@ -229,13 +230,14 @@ function renderScanMode() {
   }
   if (state.scanMode === "manual") {
     return `<div class="manual-zone">
-      <div class="manual-heading"><span class="manual-spark">✦</span><div><h2>Tell me naturally</h2><p>I’ll match foods and portions from our offline catalogue.</p></div></div>
+      <div class="manual-heading"><span class="manual-spark">✦</span><div><h2>Tell me naturally</h2><p>I’ll check Noura’s expanded catalogue first, then search the free food database.</p></div></div>
       <form id="manual-form">
         <label for="meal-text">What did you eat?</label>
         <textarea id="meal-text" name="meal" rows="4" placeholder="Try “2 eggs, 1 bowl of rice and dal”" required></textarea>
         <div class="examples"><span>Try:</span><button type="button" data-example="2 eggs and a banana">2 eggs + banana</button><button type="button" data-example="1 roti, dal and salad">roti + dal + salad</button></div>
         <button class="big-submit">Estimate my meal ${icon("spark", 19)}</button>
       </form>
+      ${renderScanStatus()}
       ${renderPendingFoods()}
     </div>`;
   }
@@ -262,14 +264,38 @@ function renderScanResults() {
 
 function renderPendingFoods() {
   if (!state.pendingFoods.length) return "";
-  const known = state.pendingFoods.filter(item => !item.unknown);
-  const unknown = state.pendingFoods.filter(item => item.unknown);
+  const indexed = state.pendingFoods.map((item, index) => ({ item, index }));
+  const known = indexed.filter(({ item }) => !item.unknown);
+  const unknown = indexed.filter(({ item }) => item.unknown);
   return `<div class="pending-panel">
-    <div class="card-title-row"><div><span class="eyebrow">Meal estimate</span><h3>${known.length} ${known.length === 1 ? "item" : "items"} matched</h3></div><strong>${known.reduce((sum, food) => sum + food.kcal, 0)} kcal</strong></div>
-    ${known.map((food, index) => `<div class="pending-row"><span>${food.emoji}</span><div><strong>${food.name}</strong><small>${food.servings || 1} × ${food.serving}</small></div><span>${food.kcal} kcal</span><button data-remove-pending="${index}" aria-label="Remove">×</button></div>`).join("")}
-    ${unknown.length ? `<p class="unknown-note">Couldn’t match: ${unknown.map(item => escapeHtml(item.name)).join(", ")}. Add those separately or try another name.</p>` : ""}
-    ${known.length ? `<button class="big-submit" data-action="log-pending">Add meal to today ${icon("check", 18)}</button>` : ""}
+    <div class="card-title-row"><div><span class="eyebrow">Meal estimate</span><h3>${known.length} ${known.length === 1 ? "item" : "items"} ready</h3></div><strong>${known.reduce((sum, { item }) => sum + item.kcal, 0)} kcal</strong></div>
+    ${known.map(({ item: food, index }) => `<div class="pending-row"><span>${food.emoji}</span><div><strong>${escapeHtml(food.name)}</strong><small>${food.servings || 1} × ${escapeHtml(food.serving)}</small>${food.source ? `<small>${escapeHtml(food.source)}</small>` : ""}</div><span>${food.kcal} kcal</span><button data-remove-pending="${index}" aria-label="Remove ${escapeHtml(food.name)}">×</button></div>`).join("")}
+    ${unknown.map(({ item, index }) => renderUnmatchedFood(item, index)).join("")}
+    ${known.length && !unknown.length ? `<button class="big-submit" data-action="log-pending">Add meal to today ${icon("check", 18)}</button>` : ""}
   </div>`;
+}
+
+function renderUnmatchedFood(item, index) {
+  const suggestions = item.suggestions || [];
+  return `<section class="unmatched-food">
+    <div class="unmatched-title"><div><span class="eyebrow">Needs confirmation</span><h4>${escapeHtml(item.name)}</h4></div><button type="button" data-remove-pending="${index}" aria-label="Remove ${escapeHtml(item.name)}">×</button></div>
+    ${item.searching ? `<p class="unknown-note">Searching USDA FoodData Central for a close match…</p>` : suggestions.length ? `<p class="lookup-help">Choose the correct database result:</p><div class="database-suggestions">${suggestions.map((food, suggestionIndex) => `<button type="button" data-use-database-food="${index}:${suggestionIndex}"><span>🍽️</span><div><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(food.brand)} · ${escapeHtml(food.serving)} · ${food.kcal} kcal</small></div>${icon("arrow", 15)}</button>`).join("")}</div>` : `<p class="unknown-note">${item.lookupError ? escapeHtml(item.lookupError) : "No reliable database match was found."} Enter the label or your best estimate below.</p>`}
+    <details class="custom-food-entry" ${suggestions.length ? "" : "open"}>
+      <summary>Enter nutrition manually</summary>
+      <form data-custom-food="${index}">
+        <label>Food name<input name="name" value="${escapeHtml(cleanCustomFoodName(item.name))}" required maxlength="80"></label>
+        <label>Serving<input name="serving" value="1 serving" required maxlength="40"></label>
+        <div class="nutrition-fields">
+          <label>Calories<input name="kcal" type="number" min="0" max="10000" step="1" required placeholder="kcal"></label>
+          <label>Protein<input name="protein" type="number" min="0" max="1000" step="0.1" placeholder="g"></label>
+          <label>Carbs<input name="carbs" type="number" min="0" max="1000" step="0.1" placeholder="g"></label>
+          <label>Fat<input name="fat" type="number" min="0" max="1000" step="0.1" placeholder="g"></label>
+          <label>Fiber<input name="fiber" type="number" min="0" max="1000" step="0.1" placeholder="g"></label>
+        </div>
+        <button>Add this food</button>
+      </form>
+    </details>
+  </section>`;
 }
 
 function renderInsights() {
@@ -435,7 +461,7 @@ function wireAfterRender() {
   document.querySelector("[data-action='forgot-password']")?.addEventListener("click", handlePasswordResetRequest);
   document.querySelector("#recovery-form")?.addEventListener("submit", handlePasswordUpdate);
   document.querySelectorAll("[data-route]").forEach(button => button.addEventListener("click", () => { state.route = button.dataset.route; render(); scrollTo(0, 0); }));
-  document.querySelectorAll("[data-scan-mode]").forEach(button => button.addEventListener("click", () => { state.scanMode = button.dataset.scanMode; state.scanStatus = null; state.scanResults = []; state.pendingFoods = []; render(); }));
+  document.querySelectorAll("[data-scan-mode]").forEach(button => button.addEventListener("click", () => { state.scanMode = button.dataset.scanMode; state.scanStatus = null; state.scanResults = []; state.pendingFoods = []; state.foodLookupToken = null; render(); }));
   document.querySelectorAll("[data-body-type]").forEach(button => button.addEventListener("click", () => { state.onboarding.bodyType = button.dataset.bodyType; render(); }));
   document.querySelectorAll("[data-goal]").forEach(button => button.addEventListener("click", () => { state.onboarding.goal = button.dataset.goal; render(); }));
   document.querySelector("[data-onboarding-next]")?.addEventListener("click", () => { state.onboardingStep += 1; render(); });
@@ -461,6 +487,11 @@ function wireAfterRender() {
   document.querySelector("#manual-form")?.addEventListener("submit", handleManualMeal);
   document.querySelectorAll("[data-example]").forEach(button => button.addEventListener("click", () => { const text = document.querySelector("#meal-text"); text.value = button.dataset.example; text.focus(); }));
   document.querySelectorAll("[data-scan-result]").forEach(button => button.addEventListener("click", () => chooseScanResult(Number(button.dataset.scanResult))));
+  document.querySelectorAll("[data-use-database-food]").forEach(button => button.addEventListener("click", () => {
+    const [itemIndex, suggestionIndex] = button.dataset.useDatabaseFood.split(":").map(Number);
+    chooseDatabaseFood(itemIndex, suggestionIndex);
+  }));
+  document.querySelectorAll("[data-custom-food]").forEach(form => form.addEventListener("submit", handleCustomFood));
   document.querySelectorAll("[data-remove-pending]").forEach(button => button.addEventListener("click", () => { state.pendingFoods.splice(Number(button.dataset.removePending), 1); render(); }));
   document.querySelector("[data-action='log-pending']")?.addEventListener("click", logPendingFoods);
   document.querySelector("[data-action='manual-focus']")?.addEventListener("click", () => { state.route = "scan"; state.scanMode = "manual"; render(); setTimeout(() => document.querySelector("#meal-text")?.focus(), 50); });
@@ -765,11 +796,82 @@ async function lookupProduct(code) {
   }
 }
 
-function handleManualMeal(event) {
+async function handleManualMeal(event) {
   event.preventDefault();
   const result = parseMealText(new FormData(event.currentTarget).get("meal"));
-  state.pendingFoods = [...result.matched, ...result.unknown.map(name => ({ unknown: true, name }))];
+  const token = `${Date.now()}-${Math.random()}`;
+  state.foodLookupToken = token;
+  state.pendingFoods = [...result.matched, ...result.unknown.map(name => ({ unknown: true, name, searching: true, suggestions: [] }))];
+  state.scanStatus = result.unknown.length ? { title: "Searching the wider food database", detail: `Checking ${result.unknown.length} unmatched ${result.unknown.length === 1 ? "item" : "items"}…`, progress: 45 } : null;
   render();
+  if (!result.unknown.length) return;
+
+  try {
+    const { searchFoodDatabase } = await import("./food-database.js");
+    const lookedUp = await Promise.all(result.unknown.map(async name => {
+      try {
+        return { unknown: true, name, searching: false, suggestions: await searchFoodDatabase(name) };
+      } catch (error) {
+        return { unknown: true, name, searching: false, suggestions: [], lookupError: friendlyError(error) };
+      }
+    }));
+    if (state.foodLookupToken !== token) return;
+    state.pendingFoods = [...result.matched, ...lookedUp];
+    const found = lookedUp.reduce((sum, item) => sum + item.suggestions.length, 0);
+    const failed = lookedUp.filter(item => item.lookupError).length;
+    state.scanStatus = failed === lookedUp.length
+      ? { title: "Database unavailable", detail: "You can still enter every food manually below.", kind: "error" }
+      : { title: found ? "Database suggestions ready" : "Manual details needed", detail: found ? "Choose a match, or enter the nutrition yourself." : "No reliable match found; use the always-available custom entry.", kind: "success" };
+    render();
+  } catch (error) {
+    if (state.foodLookupToken !== token) return;
+    state.pendingFoods = state.pendingFoods.map(item => item.unknown ? { ...item, searching: false, lookupError: friendlyError(error) } : item);
+    state.scanStatus = { title: "Database unavailable", detail: "You can still enter every food manually below.", kind: "error" };
+    render();
+  }
+}
+
+function chooseDatabaseFood(itemIndex, suggestionIndex) {
+  const item = state.pendingFoods[itemIndex];
+  const food = item?.suggestions?.[suggestionIndex];
+  if (!item?.unknown || !food) return;
+  state.pendingFoods[itemIndex] = food;
+  state.scanStatus = null;
+  render();
+}
+
+function handleCustomFood(event) {
+  event.preventDefault();
+  const index = Number(event.currentTarget.dataset.customFood);
+  const item = state.pendingFoods[index];
+  if (!item?.unknown) return;
+  const form = new FormData(event.currentTarget);
+  const name = String(form.get("name") || item.name).trim().slice(0, 80);
+  const number = field => Math.max(0, Number(form.get(field)) || 0);
+  state.pendingFoods[index] = {
+    id: `custom-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 45) || "food"}-${Date.now()}`,
+    name,
+    emoji: "🍽️",
+    serving: String(form.get("serving") || "1 serving").trim().slice(0, 40),
+    grams: 0,
+    servings: 1,
+    kcal: Math.round(number("kcal")),
+    protein: round1(number("protein")),
+    carbs: round1(number("carbs")),
+    fat: round1(number("fat")),
+    fiber: round1(number("fiber")),
+    source: "Custom entry"
+  };
+  state.scanStatus = null;
+  render();
+}
+
+function cleanCustomFoodName(value) {
+  const cleaned = String(value || "Food")
+    .replace(/^\s*(?:\d+\s*\/\s*\d+|\d+(?:\.\d+)?|[¼½¾⅓⅔]|half|quarter)\s*/i, "")
+    .replace(/^\s*(?:x|servings?|pieces?|pcs?|bowls?|cups?|plates?|glasses?|slices?)\s+(?:of\s+)?/i, "")
+    .trim();
+  return cleaned.replace(/\b\w/g, letter => letter.toUpperCase()) || "Food";
 }
 
 function chooseScanResult(index) {

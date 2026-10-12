@@ -81,10 +81,18 @@ export function getStreak(logs, now = new Date()) {
 export function findFood(query) {
   const cleaned = query.toLowerCase().trim().replace(/[_-]/g, " ");
   if (!cleaned) return null;
-  return FOOD_LIBRARY.find(food => food.aliases.some(alias => {
-    const pattern = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return cleaned === alias || new RegExp(`\\b${pattern}\\b`).test(cleaned);
-  })) || null;
+  let best = null;
+  for (const food of FOOD_LIBRARY) {
+    for (const rawAlias of food.aliases) {
+      const alias = rawAlias.toLowerCase().trim().replace(/[_-]/g, " ");
+      const pattern = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const exact = cleaned === alias;
+      if (!exact && !new RegExp(`\\b${pattern}\\b`).test(cleaned)) continue;
+      const score = (exact ? 10000 : 0) + alias.length;
+      if (!best || score > best.score) best = { food, score };
+    }
+  }
+  return best?.food || null;
 }
 
 export function parseMealText(text) {
