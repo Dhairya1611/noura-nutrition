@@ -6,5 +6,6 @@ dist/
 .env.*.local
 !.env.example
 .sites/
+supabase/.temp/
 *.tgz
 *.tar.gz
