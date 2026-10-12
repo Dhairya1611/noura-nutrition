@@ -25,6 +25,13 @@ test("service worker updates bypass the browser HTTP cache", async () => {
   assert.match(main, /updateViaCache: "none"/);
 });
 
+test("service worker displays server push messages when the page is closed", async () => {
+  const worker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.match(worker, /addEventListener\("push"/);
+  assert.match(worker, /registration\.showNotification/);
+  assert.match(worker, /notification\.data\?\.url/);
+});
+
 test("meal reminders use the custom accessible time editor", async () => {
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /class="time-stepper"/);
