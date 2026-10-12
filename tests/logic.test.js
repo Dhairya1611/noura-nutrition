@@ -20,6 +20,22 @@ test("parses natural meal text and quantities", () => {
   assert.equal(result.matched[0].kcal, 156);
 });
 
+test("recognises pear, cucumber fractions, and common muesli spellings", () => {
+  const result = parseMealText("3 bananas, moong dal khichdi, greek yogurt, pear, 1/2 cucumber, museli");
+  assert.equal(result.matched.length, 6);
+  assert.deepEqual(result.unknown, []);
+  assert.equal(result.matched.find(food => food.id === "pear")?.kcal, 101);
+  assert.equal(result.matched.find(food => food.id === "cucumber")?.servings, 0.5);
+  assert.equal(result.matched.find(food => food.id === "cucumber")?.kcal, 15);
+  assert.equal(result.matched.find(food => food.id === "muesli")?.kcal, 220);
+});
+
+test("supports written and unicode fractional quantities", () => {
+  assert.equal(parseMealText("half a cucumber").matched[0].servings, 0.5);
+  assert.equal(parseMealText("½ cucumber").matched[0].servings, 0.5);
+  assert.equal(parseMealText("1 1/2 pears").matched[0].servings, 1.5);
+});
+
 test("keeps unmatched foods visible", () => {
   const result = parseMealText("rice and moon dust");
   assert.equal(result.matched[0].name, "Steamed rice");

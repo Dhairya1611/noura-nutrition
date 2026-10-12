@@ -92,8 +92,7 @@ export function parseMealText(text) {
   const matched = [];
   const unknown = [];
   for (const segment of segments) {
-    const quantityMatch = segment.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*(?:x|servings?|pieces?|pcs?|bowls?|cups?|plates?|eggs?)?\b/);
-    const quantity = quantityMatch ? Math.min(10, Number(quantityMatch[1])) : 1;
+    const quantity = parseMealQuantity(segment);
     const food = findFood(segment);
     if (!food) {
       unknown.push(segment);
@@ -102,6 +101,32 @@ export function parseMealText(text) {
     matched.push(scaleFood(food, quantity));
   }
   return { matched, unknown };
+}
+
+function parseMealQuantity(segment) {
+  const mixedFraction = segment.match(/(?:^|\s)(\d+)\s+(\d+)\s*\/\s*(\d+)(?=\s|$)/);
+  if (mixedFraction && Number(mixedFraction[3])) {
+    return clampQuantity(Number(mixedFraction[1]) + Number(mixedFraction[2]) / Number(mixedFraction[3]));
+  }
+
+  const fraction = segment.match(/(?:^|\s)(\d+)\s*\/\s*(\d+)(?=\s|$)/);
+  if (fraction && Number(fraction[2])) return clampQuantity(Number(fraction[1]) / Number(fraction[2]));
+
+  const unicodeFraction = segment.match(/(?:^|\s)(\d+\s*)?([¼½¾⅓⅔])(?=\s|$)/);
+  if (unicodeFraction) {
+    const values = { "¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3 };
+    return clampQuantity(Number(unicodeFraction[1] || 0) + values[unicodeFraction[2]]);
+  }
+
+  if (/(?:^|\s)half(?:\s+(?:an?|of))?(?=\s)/.test(segment)) return 0.5;
+  if (/(?:^|\s)quarter(?:\s+(?:of))?(?=\s)/.test(segment)) return 0.25;
+
+  const number = segment.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*(?:x|servings?|pieces?|pcs?|bowls?|cups?|plates?|eggs?)?(?=\s|$)/);
+  return number ? clampQuantity(Number(number[1])) : 1;
+}
+
+function clampQuantity(value) {
+  return Math.max(0.1, Math.min(10, value));
 }
 
 export function scaleFood(food, servings = 1) {
