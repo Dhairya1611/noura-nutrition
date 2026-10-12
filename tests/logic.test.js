@@ -130,7 +130,14 @@ test("notification state requires installation on iOS", () => {
 });
 
 test("notification state offers a test after permission is granted", () => {
-  const status = getNotificationState({ supported: true, permission: "granted", secureContext: true, isIOS: false, isStandalone: false });
+  const status = getNotificationState({ supported: true, permission: "granted", secureContext: true, isIOS: false, isStandalone: false, pushSupported: true, serverConfigured: true, pushStatus: "connected" });
   assert.equal(status.code, "granted");
-  assert.equal(status.action, "Send test notification");
+  assert.equal(status.label, "Always on");
+  assert.equal(status.action, "Send server test");
+});
+
+test("notification state distinguishes permission from closed-app delivery", () => {
+  const status = getNotificationState({ supported: true, permission: "granted", secureContext: true, isIOS: false, isStandalone: false, pushSupported: true, serverConfigured: true, pushStatus: "idle" });
+  assert.equal(status.code, "prompt");
+  assert.equal(status.action, "Connect reminders");
 });
