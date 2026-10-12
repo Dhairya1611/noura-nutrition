@@ -850,7 +850,7 @@ async function sendNotification(title, body) {
 
 async function ensureServiceWorker() {
   if (!("serviceWorker" in navigator)) return null;
-  const registration = await navigator.serviceWorker.register(assetUrl("sw.js"));
+  const registration = await navigator.serviceWorker.register(assetUrl("sw.js"), { updateViaCache: "none" });
   if (registration.active) return registration;
   return Promise.race([
     navigator.serviceWorker.ready,
