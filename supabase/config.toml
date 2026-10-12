@@ -1,0 +1,4 @@
+project_id = "noura-nutrition"
+
+[functions.send-meal-reminders]
+verify_jwt = false
