@@ -232,7 +232,10 @@ p { color: var(--muted); line-height: 1.55; }
 .coach-remaining > div { height: 4px; background: rgba(255,255,255,.15); border-radius: 4px; overflow: hidden; }
 .coach-remaining > div i { display: block; height: 100%; background: var(--lime); }
 .coach-remaining p { margin: 8px 0 0; }
-.recommendation-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 24px 0; }
+.coach-list-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin: 30px 2px 0; }
+.coach-list-heading h2 { margin: 5px 0 0; }
+.coach-list-heading p { margin: 0; max-width: 330px; text-align: right; font-size: .78rem; }
+.recommendation-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 18px 0 24px; }
 .recommendation-card { padding: 24px; }
 .recommendation-card.featured { border-color: #a7cc50; box-shadow: 0 10px 30px rgba(117,150,45,.12); }
 .recommendation-top { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -422,7 +425,6 @@ p { color: var(--muted); line-height: 1.55; }
   .estimate-card { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; align-items: center; }
   .tip-visual, .trust-row { grid-column: 2; }
   .recommendation-grid { grid-template-columns: repeat(2, 1fr); }
-  .recommendation-card:last-child { grid-column: span 2; }
   .onboarding-shell { grid-template-columns: 1fr; }
   .onboarding-aside { display: none; }
   .auth-layout { grid-template-columns: 1fr; }
@@ -474,8 +476,9 @@ p { color: var(--muted); line-height: 1.55; }
   .chart-legend { display: none; }
   .coach-hero { grid-template-columns: 1fr; padding: 27px 22px; gap: 26px; }
   .coach-hero h1 { font-size: 2.25rem; }
+  .coach-list-heading { align-items: flex-start; flex-direction: column; gap: 7px; margin-top: 24px; }
+  .coach-list-heading p { text-align: left; }
   .recommendation-grid { grid-template-columns: 1fr; }
-  .recommendation-card:last-child { grid-column: auto; }
   .coach-principles { grid-template-columns: 1fr; gap: 14px; }
   .coach-principles > div { border-right: 0; border-bottom: 1px solid var(--line); padding: 8px 0 14px; }
   .profile-grid { grid-template-columns: 1fr; }

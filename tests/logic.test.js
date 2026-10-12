@@ -66,8 +66,13 @@ test("totals only the selected local day", () => {
 
 test("coach respects vegan preference", () => {
   const recs = recommendNext({ kcal: 500, protein: 20, carbs: 50, fat: 15, fiber: 5 }, { calories: 2000, protein: 120, carbs: 250, fat: 65, fiber: 30 }, { diet: "vegan" });
-  assert.ok(recs.length > 0);
+  assert.equal(recs.length, 8);
   assert.ok(recs.every(food => food.tags.includes("vegan")));
+});
+
+test("coach can limit suggestions for compact surfaces", () => {
+  const recs = recommendNext({ kcal: 500, protein: 20, carbs: 50, fat: 15, fiber: 5 }, { calories: 2000, protein: 120, carbs: 250, fat: 65, fiber: 30 }, { diet: "omnivore" }, 1);
+  assert.equal(recs.length, 1);
 });
 
 test("year chart always returns twelve months", () => {

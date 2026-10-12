@@ -142,7 +142,7 @@ export function scaleFood(food, servings = 1) {
   };
 }
 
-export function recommendNext(totals, targets, profile = {}) {
+export function recommendNext(totals, targets, profile = {}, limit = 8) {
   const remaining = {
     kcal: Math.max(0, targets.calories - totals.kcal),
     protein: Math.max(0, targets.protein - totals.protein),
@@ -163,7 +163,7 @@ export function recommendNext(totals, targets, profile = {}) {
       return { food, rank: proteinNeed * 3 + fiberNeed * 2 + calorieFit };
     })
     .sort((a, b) => b.rank - a.rank)
-    .slice(0, 3)
+    .slice(0, Math.max(1, Math.min(12, Number(limit) || 8)))
     .map(({ food }) => ({ ...food, reason: recommendationReason(food, remaining) }));
 }
 

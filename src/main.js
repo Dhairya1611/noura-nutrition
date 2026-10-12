@@ -143,7 +143,7 @@ function renderToday() {
   const caloriePercent = Math.min(100, Math.round((totals.kcal / target.calories) * 100));
   const score = calculateDayScore(totals, target);
   const streak = getStreak(state.logs);
-  const recommendations = recommendNext(totals, target, state.profile);
+  const recommendations = recommendNext(totals, target, state.profile, 1);
   const todayLogs = state.logs.filter(log => dayKey(normaliseLogDate(log.at)) === dayKey());
   return `
     <section class="page today-page">
@@ -308,6 +308,10 @@ function renderCoach() {
     <div class="coach-hero">
       <div><span class="eyebrow light">Adaptive nutrition coach</span><h1>Here’s what your body could use next.</h1><p>Based on what you’ve logged—not a rigid meal plan.</p></div>
       <div class="coach-remaining"><span>Remaining today</span><strong>${Math.round(remaining.kcal)} <small>kcal</small></strong><div><i style="width:${Math.min(100, remaining.protein / target.protein * 100)}%"></i></div><p>${Math.round(remaining.protein)}g protein · ${Math.round(remaining.fiber)}g fiber to go</p></div>
+    </div>
+    <div class="coach-list-heading">
+      <div><span class="eyebrow">Flexible choices</span><h2>${recommendations.length ? `${recommendations.length} suggestions for what to eat next` : "You’re on track for today"}</h2></div>
+      ${recommendations.length ? `<p>Pick the option that fits your appetite and routine.</p>` : ""}
     </div>
     <div class="recommendation-grid">
       ${recommendations.length ? recommendations.map((food, index) => recommendationCard(food, index)).join("") : `<article class="card all-done"><span>✓</span><h2>You’ve met today’s energy goal.</h2><p>If you’re genuinely hungry, choose something light and satisfying rather than chasing the numbers.</p></article>`}
