@@ -308,6 +308,7 @@ p { color: var(--muted); line-height: 1.55; }
 .permission-badge.granted { background: var(--lime-soft); color: var(--ink); }
 .permission-badge.blocked, .permission-badge.unavailable { background: #fff0ed; color: #973e35; }
 .permission-badge.install { background: #fff2d8; color: #77501d; }
+.permission-badge.limited { background: #fff2d8; color: #77501d; }
 .notification-guidance { display: flex; gap: 11px; align-items: flex-start; margin: 16px 0 5px; padding: 13px; border-radius: 12px; background: #eef2ed; }
 .notification-guidance > svg { flex: 0 0 auto; margin-top: 1px; }
 .notification-guidance > div { display: grid; gap: 3px; }
@@ -316,6 +317,7 @@ p { color: var(--muted); line-height: 1.55; }
 .notification-guidance.granted { background: #edf8e3; }
 .notification-guidance.blocked, .notification-guidance.unavailable { background: #fff0ed; color: #8c362d; }
 .notification-guidance.install { background: #fff7e7; color: #77501d; }
+.notification-guidance.limited { background: #fff7e7; color: #77501d; }
 .reminder-list { display: grid; gap: 9px; margin: 19px 0; }
 .reminder-item { border: 1px solid var(--line); border-radius: 14px; background: #fbfbf7; overflow: hidden; transition: border-color .2s, box-shadow .2s, background .2s; }
 .reminder-item.editing { border-color: #a8bd92; background: white; box-shadow: 0 12px 32px rgba(23,54,44,.1); }
