@@ -100,3 +100,29 @@ export async function deleteCloudState(userId) {
   const { error } = await requireClient().from("noura_user_data").delete().eq("user_id", userId);
   if (error) throw error;
 }
+
+export async function registerPushSubscription(value) {
+  const { data, error } = await requireClient().rpc("register_noura_push_subscription", {
+    push_endpoint: value.endpoint,
+    push_p256dh: value.p256dh,
+    push_auth: value.auth,
+    push_timezone: value.timezone,
+    push_user_agent: value.userAgent
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function unregisterPushSubscription(endpoint) {
+  const { error } = await requireClient().rpc("unregister_noura_push_subscription", { push_endpoint: endpoint });
+  if (error) throw error;
+}
+
+export async function sendPushTest(endpoint) {
+  const { data, error } = await requireClient().functions.invoke("send-meal-reminders", {
+    body: { mode: "test", endpoint }
+  });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error || "The server could not send the test notification.");
+  return data;
+}
