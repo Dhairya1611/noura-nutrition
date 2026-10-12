@@ -30,6 +30,15 @@ test("recognises pear, cucumber fractions, and common muesli spellings", () => {
   assert.equal(result.matched.find(food => food.id === "muesli")?.kcal, 220);
 });
 
+test("recognises a bowl of chaap and common soy spellings", () => {
+  const bowl = parseMealText("1 bowl chaap");
+  assert.deepEqual(bowl.unknown, []);
+  assert.equal(bowl.matched[0].id, "soya-chaap");
+  assert.equal(bowl.matched[0].servings, 1);
+  assert.equal(bowl.matched[0].kcal, 246);
+  assert.equal(parseMealText("2 bowls soy chap").matched[0].kcal, 492);
+});
+
 test("supports written and unicode fractional quantities", () => {
   assert.equal(parseMealText("half a cucumber").matched[0].servings, 0.5);
   assert.equal(parseMealText("½ cucumber").matched[0].servings, 0.5);
