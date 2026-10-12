@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateDayScore, calculateTargets, chartSeries, findFood, parseMealText, recommendNext, totalsForDate } from "../src/logic.js";
+import {
+  adjustReminderTime, calculateDayScore, calculateTargets, chartSeries, findFood, formatReminderTime,
+  parseMealText, recommendNext, reminderTimeParts, setReminderPeriod, totalsForDate
+} from "../src/logic.js";
 import { FOOD_LIBRARY } from "../src/data.js";
 import { getNotificationState } from "../src/notifications.js";
 
@@ -102,6 +105,16 @@ test("coach can limit suggestions for compact surfaces", () => {
 test("year chart always returns twelve months", () => {
   const series = chartSeries([], "year", { calories: 2000 }, new Date("2026-10-09"));
   assert.equal(series.length, 12);
+});
+
+test("formats and adjusts reminder times without a native time picker", () => {
+  assert.equal(formatReminderTime("08:30"), "08:30 AM");
+  assert.equal(formatReminderTime("13:05"), "01:05 PM");
+  assert.equal(adjustReminderTime("23:58", 5), "00:03");
+  assert.equal(adjustReminderTime("00:02", -5), "23:57");
+  assert.equal(setReminderPeriod("08:30", "PM"), "20:30");
+  assert.equal(setReminderPeriod("20:30", "AM"), "08:30");
+  assert.deepEqual(reminderTimeParts("12:00"), { hour24: 12, hour12: 12, minute: 0, period: "PM" });
 });
 
 test("notification state explains a blocked browser permission", () => {

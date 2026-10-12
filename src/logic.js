@@ -211,6 +211,36 @@ export function mealTypeForTime(date = new Date()) {
   return "Dinner";
 }
 
+export function reminderTimeParts(value = "08:00") {
+  const match = String(value).match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  const hour24 = match ? Number(match[1]) : 8;
+  const minute = match ? Number(match[2]) : 0;
+  return {
+    hour24,
+    hour12: hour24 % 12 || 12,
+    minute,
+    period: hour24 >= 12 ? "PM" : "AM"
+  };
+}
+
+export function formatReminderTime(value) {
+  const { hour12, minute, period } = reminderTimeParts(value);
+  return `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${period}`;
+}
+
+export function adjustReminderTime(value, minutes) {
+  const { hour24, minute } = reminderTimeParts(value);
+  const total = (hour24 * 60 + minute + Number(minutes || 0) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+export function setReminderPeriod(value, period) {
+  const { hour24, minute } = reminderTimeParts(value);
+  const target = period === "PM" ? "PM" : "AM";
+  const nextHour = target === "PM" && hour24 < 12 ? hour24 + 12 : target === "AM" && hour24 >= 12 ? hour24 - 12 : hour24;
+  return `${String(nextHour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 export function round1(value) {
   return Math.round(Number(value || 0) * 10) / 10;
 }

@@ -2,7 +2,8 @@ import "./styles.css";
 import { BODY_TYPES, DEFAULT_REMINDERS, FOOD_LIBRARY, GOALS } from "./data.js";
 import {
   calculateDayScore, calculateTargets, chartSeries, dayKey, findFood, getStreak,
-  mealTypeForTime, normaliseLogDate, parseMealText, recommendNext, round1, scaleFood, totalsForDate
+  adjustReminderTime, formatReminderTime, mealTypeForTime, normaliseLogDate, parseMealText,
+  recommendNext, reminderTimeParts, round1, scaleFood, setReminderPeriod, totalsForDate
 } from "./logic.js";
 import { getNotificationState } from "./notifications.js";
 import {
@@ -28,6 +29,7 @@ const defaults = {
   scanResults: [],
   pendingFoods: [],
   foodLookupToken: null,
+  reminderEditor: null,
   auth: { status: authPreview ? "anonymous" : cloudConfigured ? "loading" : "unconfigured", mode: "signin", message: "", kind: "", recovery: false },
   sync: { status: "offline", message: "Not signed in" },
   toast: null
@@ -43,7 +45,7 @@ let hydrationToken = 0;
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], foodLookupToken: null, auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), toast: null };
+    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], foodLookupToken: null, reminderEditor: null, auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), toast: null };
   } catch {
     return structuredClone(defaults);
   }
@@ -370,7 +372,7 @@ function renderProfile() {
         <div class="card-title-row"><div><span class="eyebrow">Meal reminders</span><h2>A gentle nudge, before you eat.</h2></div><span class="permission-badge ${notification.code}">${notification.label}</span></div>
         <p>Browser notifications are sent while Noura is open or installed and active. Exact closed-app scheduling depends on your device.</p>
         <div class="notification-guidance ${notification.code}" role="status">${icon(notification.code === "granted" ? "check" : "bell", 19)}<div><strong>${notification.title}</strong><span>${notification.message}</span></div></div>
-        <div class="reminder-list">${state.reminders.map(reminder => `<label class="reminder-row"><span><strong>${reminder.label}</strong><input type="time" value="${reminder.time}" data-reminder-time="${reminder.id}"></span><input class="switch-input" type="checkbox" data-reminder-toggle="${reminder.id}" ${reminder.enabled ? "checked" : ""}><i class="switch"></i></label>`).join("")}</div>
+        <div class="reminder-list">${state.reminders.map(renderReminderEditor).join("")}</div>
         <button class="compact-button" data-action="enable-notifications">${icon("bell", 16)} ${notification.action}</button>
       </article>
       <article class="card diet-card">
@@ -383,6 +385,32 @@ function renderProfile() {
       </article>
     </div>
   </section>`;
+}
+
+function renderReminderEditor(reminder) {
+  const isEditing = state.reminderEditor?.id === reminder.id;
+  const draftTime = isEditing ? state.reminderEditor.time : reminder.time;
+  const parts = reminderTimeParts(draftTime);
+  const marks = { breakfast: "☀", lunch: "◐", dinner: "☾" };
+  return `<div class="reminder-item ${isEditing ? "editing" : ""}">
+    <div class="reminder-row">
+      <div class="reminder-identity"><span class="reminder-mark ${reminder.id}" aria-hidden="true">${marks[reminder.id] || "◷"}</span><div><strong>${escapeHtml(reminder.label)}</strong><small>Every day</small></div></div>
+      <div class="reminder-controls">
+        <button type="button" class="time-display" data-edit-reminder="${reminder.id}" aria-expanded="${isEditing}" aria-controls="time-editor-${reminder.id}"><span>${icon("clock", 15)}<strong>${formatReminderTime(reminder.time)}</strong></span><small>${isEditing ? "Editing" : "Change"}</small></button>
+        <label class="switch-label" aria-label="${reminder.enabled ? "Disable" : "Enable"} ${escapeHtml(reminder.label)} reminder"><input class="switch-input" type="checkbox" data-reminder-toggle="${reminder.id}" ${reminder.enabled ? "checked" : ""}><i class="switch"></i></label>
+      </div>
+    </div>
+    ${isEditing ? `<div class="time-editor" id="time-editor-${reminder.id}">
+      <div class="time-editor-heading"><div><strong>Set ${escapeHtml(reminder.label.toLowerCase())} time</strong><span>Use the controls to choose when Noura should remind you.</span></div><button type="button" data-action="cancel-reminder-time" aria-label="Close time editor">×</button></div>
+      <div class="time-editor-controls" role="group" aria-label="Reminder time">
+        <div class="time-stepper"><span>Hour</span><div><button type="button" data-time-adjust="-60" aria-label="Previous hour">−</button><strong>${String(parts.hour12).padStart(2, "0")}</strong><button type="button" data-time-adjust="60" aria-label="Next hour">+</button></div></div>
+        <span class="time-colon" aria-hidden="true">:</span>
+        <div class="time-stepper"><span>Minute</span><div><button type="button" data-time-adjust="-5" aria-label="Five minutes earlier">−</button><strong>${String(parts.minute).padStart(2, "0")}</strong><button type="button" data-time-adjust="5" aria-label="Five minutes later">+</button></div></div>
+        <div class="period-selector" aria-label="AM or PM">${["AM", "PM"].map(period => `<button type="button" class="${parts.period === period ? "active" : ""}" data-time-period="${period}" aria-pressed="${parts.period === period}">${period}</button>`).join("")}</div>
+      </div>
+      <div class="time-editor-footer"><span>${icon("bell", 14)} Reminder set for <strong>${formatReminderTime(draftTime)}</strong></span><div><button type="button" class="time-cancel" data-action="cancel-reminder-time">Cancel</button><button type="button" class="time-save" data-action="save-reminder-time">Save time</button></div></div>
+    </div>` : ""}
+  </div>`;
 }
 
 function renderOnboarding() {
@@ -460,7 +488,7 @@ function wireAfterRender() {
   document.querySelector("#auth-form")?.addEventListener("submit", handleAuthSubmit);
   document.querySelector("[data-action='forgot-password']")?.addEventListener("click", handlePasswordResetRequest);
   document.querySelector("#recovery-form")?.addEventListener("submit", handlePasswordUpdate);
-  document.querySelectorAll("[data-route]").forEach(button => button.addEventListener("click", () => { state.route = button.dataset.route; render(); scrollTo(0, 0); }));
+  document.querySelectorAll("[data-route]").forEach(button => button.addEventListener("click", () => { state.route = button.dataset.route; state.reminderEditor = null; render(); scrollTo(0, 0); }));
   document.querySelectorAll("[data-scan-mode]").forEach(button => button.addEventListener("click", () => { state.scanMode = button.dataset.scanMode; state.scanStatus = null; state.scanResults = []; state.pendingFoods = []; state.foodLookupToken = null; render(); }));
   document.querySelectorAll("[data-body-type]").forEach(button => button.addEventListener("click", () => { state.onboarding.bodyType = button.dataset.bodyType; render(); }));
   document.querySelectorAll("[data-goal]").forEach(button => button.addEventListener("click", () => { state.onboarding.goal = button.dataset.goal; render(); }));
@@ -499,8 +527,25 @@ function wireAfterRender() {
   document.querySelectorAll("[data-quick-log]").forEach(button => button.addEventListener("click", () => addFoodLog(FOOD_LIBRARY.find(food => food.id === button.dataset.quickLog))));
   document.querySelectorAll("[data-period]").forEach(button => button.addEventListener("click", () => { state.period = button.dataset.period; render(); }));
   document.querySelectorAll("[data-diet]").forEach(button => button.addEventListener("click", () => { state.profile.diet = button.dataset.diet; persist(); render(); }));
-  document.querySelectorAll("[data-reminder-time]").forEach(input => input.addEventListener("change", () => updateReminder(input.dataset.reminderTime, { time: input.value })));
-  document.querySelectorAll("[data-reminder-toggle]").forEach(input => input.addEventListener("change", () => updateReminder(input.dataset.reminderToggle, { enabled: input.checked })));
+  document.querySelectorAll("[data-edit-reminder]").forEach(button => button.addEventListener("click", () => {
+    const reminder = state.reminders.find(item => item.id === button.dataset.editReminder);
+    if (!reminder) return;
+    state.reminderEditor = state.reminderEditor?.id === reminder.id ? null : { id: reminder.id, time: reminder.time };
+    render();
+  }));
+  document.querySelectorAll("[data-time-adjust]").forEach(button => button.addEventListener("click", () => {
+    if (!state.reminderEditor) return;
+    state.reminderEditor.time = adjustReminderTime(state.reminderEditor.time, Number(button.dataset.timeAdjust));
+    render();
+  }));
+  document.querySelectorAll("[data-time-period]").forEach(button => button.addEventListener("click", () => {
+    if (!state.reminderEditor) return;
+    state.reminderEditor.time = setReminderPeriod(state.reminderEditor.time, button.dataset.timePeriod);
+    render();
+  }));
+  document.querySelectorAll("[data-action='cancel-reminder-time']").forEach(button => button.addEventListener("click", () => { state.reminderEditor = null; render(); }));
+  document.querySelector("[data-action='save-reminder-time']")?.addEventListener("click", saveReminderTime);
+  document.querySelectorAll("[data-reminder-toggle]").forEach(input => input.addEventListener("change", () => { updateReminder(input.dataset.reminderToggle, { enabled: input.checked }); render(); }));
   document.querySelectorAll("[data-action='enable-notifications']").forEach(button => button.addEventListener("click", enableNotifications));
   document.querySelector("[data-action='restart-onboarding']")?.addEventListener("click", () => { state.onboarding = { ...state.profile }; state.onboardingStep = 1; state.profile = null; render(); });
   document.querySelector("[data-action='logout']")?.addEventListener("click", logout);
@@ -931,6 +976,15 @@ function updateReminder(id, changes) {
   persist();
 }
 
+function saveReminderTime() {
+  const draft = state.reminderEditor;
+  const reminder = state.reminders.find(item => item.id === draft?.id);
+  if (!draft || !reminder) return;
+  updateReminder(draft.id, { time: draft.time });
+  state.reminderEditor = null;
+  showToast(`${reminder.label} reminder changed to ${formatReminderTime(draft.time)}.`);
+}
+
 async function checkReminders() {
   if (!("Notification" in window) || Notification.permission !== "granted" || !state.profile) return;
   const now = new Date();
@@ -1068,7 +1122,7 @@ function escapeHtml(value = "") {
 function icon(name, size = 20) {
   const paths = {
     leaf: '<path d="M18.7 3.8C12.7 3.9 7.6 6.5 6.3 11.4c-.7 2.7.6 5.3 3 6.2 3.8 1.3 7.5-1.9 8.3-5.7.4-2 .5-5 .1-7.1M5 20c1.8-5.4 5.3-8.8 10.6-11.3"/>', logout: '<path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9"/>',
-    home: '<path d="m3 10 9-7 9 7v10h-6v-6H9v6H3Z"/>', scan: '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 12h8"/>', chart: '<path d="M4 19V9m6 10V5m6 14v-7m4 7H2"/>', spark: '<path d="m12 3 1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5ZM19 3v4M21 5h-4"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c.6-4.2 3.2-6 8-6s7.4 1.8 8 6"/>', bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>', arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>', shield: '<path d="M12 3 5 6v5c0 4.6 2.7 8 7 10 4.3-2 7-5.4 7-10V6Z"/><path d="m9 12 2 2 4-4"/>', type: '<path d="M5 5h14M12 5v14M8 19h8"/>', barcode: '<path d="M4 5v14M7 5v14M11 5v14M13 5v14M17 5v14M20 5v14"/>', camera: '<path d="M4 7h3l2-3h6l2 3h3v13H4Z"/><circle cx="12" cy="13" r="4"/>', check: '<path d="m5 12 4 4L19 6"/>', back: '<path d="m15 18-6-6 6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>', plate: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>', pulse: '<path d="M3 12h4l2-5 4 10 2-5h6"/>', target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>', flame: '<path d="M12 21c4 0 7-2.8 7-6.5 0-3-1.7-5.7-5.2-8.5.1 2.5-.7 4-2 4.8.1-3.1-1.4-5.7-4-7.8.1 4-3 6.6-3 11.5C4.8 18.2 8 21 12 21Z"/>'
+    home: '<path d="m3 10 9-7 9 7v10h-6v-6H9v6H3Z"/>', scan: '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 12h8"/>', chart: '<path d="M4 19V9m6 10V5m6 14v-7m4 7H2"/>', spark: '<path d="m12 3 1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5ZM19 3v4M21 5h-4"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c.6-4.2 3.2-6 8-6s7.4 1.8 8 6"/>', bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>', clock: '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>', arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>', shield: '<path d="M12 3 5 6v5c0 4.6 2.7 8 7 10 4.3-2 7-5.4 7-10V6Z"/><path d="m9 12 2 2 4-4"/>', type: '<path d="M5 5h14M12 5v14M8 19h8"/>', barcode: '<path d="M4 5v14M7 5v14M11 5v14M13 5v14M17 5v14M20 5v14"/>', camera: '<path d="M4 7h3l2-3h6l2 3h3v13H4Z"/><circle cx="12" cy="13" r="4"/>', check: '<path d="m5 12 4 4L19 6"/>', back: '<path d="m15 18-6-6 6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>', plate: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>', pulse: '<path d="M3 12h4l2-5 4 10 2-5h6"/>', target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>', flame: '<path d="M12 21c4 0 7-2.8 7-6.5 0-3-1.7-5.7-5.2-8.5.1 2.5-.7 4-2 4.8.1-3.1-1.4-5.7-4-7.8.1 4-3 6.6-3 11.5C4.8 18.2 8 21 12 21Z"/>'
   };
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.spark}</svg>`;
 }

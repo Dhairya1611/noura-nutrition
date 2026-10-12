@@ -25,6 +25,14 @@ test("service worker updates bypass the browser HTTP cache", async () => {
   assert.match(main, /updateViaCache: "none"/);
 });
 
+test("meal reminders use the custom accessible time editor", async () => {
+  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.match(main, /class="time-stepper"/);
+  assert.match(main, /data-time-period/);
+  assert.match(main, /data-action="save-reminder-time"/);
+  assert.doesNotMatch(main, /type="time"/);
+});
+
 test("repair page clears only Noura shell caches before returning to the app", async () => {
   const repair = await readFile(new URL("../public/repair.html", import.meta.url), "utf8");
   assert.match(repair, /registration\.unregister\(\)/);
