@@ -6,15 +6,19 @@ import {
   recommendNext, reminderTimeParts, round1, scaleFood, setReminderPeriod, totalsForDate
 } from "./logic.js";
 import { getNotificationState } from "./notifications.js";
+import { applicationServerKeyMatches, currentTimezone, pushIsSupported, pushSubscriptionRecord, urlBase64ToUint8Array } from "./push.js";
 import {
   cloudConfigured, createAccount, deleteCloudState, fetchCloudState, getCloudSession,
-  onCloudAuthChange, requestPasswordReset, saveCloudState, signIn, signInWithGoogle, signOut, updatePassword
+  onCloudAuthChange, registerPushSubscription, requestPasswordReset, saveCloudState, sendPushTest,
+  signIn, signInWithGoogle, signOut, unregisterPushSubscription, updatePassword
 } from "./cloud.js";
 
 const STORAGE_KEY = "noura-state-v1";
 const app = document.querySelector("#app");
 const assetUrl = path => `${import.meta.env.BASE_URL}${String(path).replace(/^\//, "")}`;
 const authPreview = import.meta.env.DEV && new URLSearchParams(location.search).has("auth-preview");
+const vapidPublicKey = String(import.meta.env.VITE_VAPID_PUBLIC_KEY || "").trim();
+const serverPushConfigured = Boolean(vapidPublicKey && cloudConfigured);
 
 const defaults = {
   profile: null,
@@ -32,6 +36,7 @@ const defaults = {
   reminderEditor: null,
   auth: { status: authPreview ? "anonymous" : cloudConfigured ? "loading" : "unconfigured", mode: "signin", message: "", kind: "", recovery: false },
   sync: { status: "offline", message: "Not signed in" },
+  push: { status: "idle", message: "" },
   toast: null
 };
 
@@ -45,7 +50,7 @@ let hydrationToken = 0;
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], foodLookupToken: null, reminderEditor: null, auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), toast: null };
+    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], foodLookupToken: null, reminderEditor: null, auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), push: structuredClone(defaults.push), toast: null };
   } catch {
     return structuredClone(defaults);
   }
@@ -118,7 +123,7 @@ function renderAppShell() {
           <button class="mobile-brand" data-route="today" aria-label="Go home">${brand(true)}</button>
           <div class="topbar-date">${formatDate(new Date())}</div>
           <div class="topbar-actions">
-            <button class="icon-button" data-action="enable-notifications" aria-label="Meal reminders">${icon("bell", 20)}<span class="notification-dot ${notificationContext().permission === "granted" ? "enabled" : ""}"></span></button>
+            <button class="icon-button" data-action="enable-notifications" aria-label="Meal reminders">${icon("bell", 20)}<span class="notification-dot ${notificationContext().pushStatus === "connected" ? "enabled" : ""}"></span></button>
             <button class="avatar" data-route="profile" aria-label="Profile">${initials(state.profile.name || "You")}</button>
           </div>
         </header>
@@ -370,10 +375,10 @@ function renderProfile() {
       </article>
       <article class="card settings-card">
         <div class="card-title-row"><div><span class="eyebrow">Meal reminders</span><h2>A gentle nudge, before you eat.</h2></div><span class="permission-badge ${notification.code}">${notification.label}</span></div>
-        <p>Browser notifications are sent while Noura is open or installed and active. Exact closed-app scheduling depends on your device.</p>
+        <p>Noura Push uses your device’s timezone to send meal reminders at the times below—even after the app or browser is closed.</p>
         <div class="notification-guidance ${notification.code}" role="status">${icon(notification.code === "granted" ? "check" : "bell", 19)}<div><strong>${notification.title}</strong><span>${notification.message}</span></div></div>
         <div class="reminder-list">${state.reminders.map(renderReminderEditor).join("")}</div>
-        <button class="compact-button" data-action="enable-notifications">${icon("bell", 16)} ${notification.action}</button>
+        <button class="compact-button" data-action="enable-notifications" ${state.push.status === "connecting" ? "disabled" : ""}>${icon("bell", 16)} ${notification.action}</button>
       </article>
       <article class="card diet-card">
         <span class="eyebrow">Food preference</span><h2>What works for you?</h2>
@@ -381,7 +386,7 @@ function renderProfile() {
         <p>This filters coach recommendations. It does not hide foods from manual search.</p>
       </article>
       <article class="card privacy-card">
-        <div class="privacy-mark">${icon("shield", 27)}</div><div><span class="eyebrow">Account privacy</span><h2>Your meals stay yours.</h2><p>Your profile, logs, and reminders are stored in your private account and cached in this browser for speed. Row-level security limits access to the signed-in user. Food photos are still processed on-device.</p><button class="danger-link" data-action="reset-data">Delete my nutrition data</button></div>
+        <div class="privacy-mark">${icon("shield", 27)}</div><div><span class="eyebrow">Account privacy</span><h2>Your meals stay yours.</h2><p>Your profile, logs, reminders, and this device’s encrypted push endpoint are stored in your private account. Row-level security limits access to the signed-in user. Food photos are still processed on-device.</p><button class="danger-link" data-action="reset-data">Delete my nutrition data</button></div>
       </article>
     </div>
   </section>`;
@@ -684,6 +689,7 @@ async function hydrateUser(user) {
     state.auth = { status: "authenticated", mode: "signin", message: "", kind: "", recovery: false, user };
     persist({ sync: false });
     render();
+    void refreshPushSubscription();
   } catch (error) {
     if (token !== hydrationToken) return;
     state.auth = { status: "authenticated", mode: "signin", message: "", kind: "", recovery: false, user };
@@ -964,10 +970,19 @@ async function enableNotifications() {
   try {
     const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
     if (permission !== "granted") return showToast("Permission was not enabled. Use the instructions shown on this page to try again.", "error");
-    await sendNotification("Noura reminders are on", "This test worked. I’ll gently remind you around your chosen meal times.");
-    showToast(status.code === "granted" ? "Test notification sent." : "Meal reminders are enabled and the test was sent.");
+    if (!serverPushConfigured || !pushIsSupported(window)) {
+      await sendNotification("Noura reminders are on", "This browser can show notifications while Noura is running.");
+      return showToast("The local test worked, but closed-app reminders are not available in this browser.", "error");
+    }
+    state.push = { status: "connecting", message: "Connecting this device…" };
+    render();
+    const subscription = await ensurePushSubscription();
+    await sendPushTest(subscription.endpoint);
+    showToast("Closed-app reminders are connected and the server test was sent.");
   } catch (error) {
-    showToast(`Noura could not send the test: ${friendlyError(error)}`, "error");
+    state.push = { status: "error", message: friendlyPushError(error) };
+    render();
+    showToast(`Noura could not send the test: ${friendlyPushError(error)}`, "error");
   }
 }
 
@@ -987,6 +1002,7 @@ function saveReminderTime() {
 
 async function checkReminders() {
   if (!("Notification" in window) || Notification.permission !== "granted" || !state.profile) return;
+  if (serverPushConfigured && state.push.status === "connected") return;
   const now = new Date();
   const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const reminder = state.reminders.find(item => item.enabled && item.time === time);
@@ -1014,6 +1030,66 @@ async function ensureServiceWorker() {
   ]);
 }
 
+async function ensurePushSubscription() {
+  if (!currentUser) throw new Error("Sign in before connecting reminders.");
+  if (!serverPushConfigured) throw new Error("Closed-app reminder delivery has not been configured.");
+  if (!pushIsSupported(window)) throw new Error("This browser does not support closed-app Web Push.");
+  const registration = await ensureServiceWorker();
+  let subscription = await registration.pushManager.getSubscription();
+  if (subscription && !applicationServerKeyMatches(subscription, vapidPublicKey)) {
+    await subscription.unsubscribe();
+    subscription = null;
+  }
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+    });
+  }
+  await registerPushSubscription(pushSubscriptionRecord(subscription, currentTimezone(), navigator.userAgent));
+  state.push = { status: "connected", message: "This device receives closed-app reminders" };
+  render();
+  return subscription;
+}
+
+async function refreshPushSubscription() {
+  if (!currentUser || !serverPushConfigured || !pushIsSupported(window) || Notification.permission !== "granted") {
+    state.push = { status: "idle", message: "" };
+    return;
+  }
+  try {
+    const registration = await ensureServiceWorker();
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription || !applicationServerKeyMatches(subscription, vapidPublicKey)) {
+      if (subscription) await subscription.unsubscribe();
+      state.push = { status: "idle", message: "" };
+      render();
+      return;
+    }
+    await registerPushSubscription(pushSubscriptionRecord(subscription, currentTimezone(), navigator.userAgent));
+    state.push = { status: "connected", message: "This device receives closed-app reminders" };
+  } catch (error) {
+    state.push = { status: "error", message: friendlyPushError(error) };
+  }
+  render();
+}
+
+async function disconnectPushSubscription() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  const registration = await navigator.serviceWorker.getRegistration();
+  const subscription = await registration?.pushManager?.getSubscription();
+  if (!subscription) return;
+  if (currentUser) {
+    try {
+      await unregisterPushSubscription(subscription.endpoint);
+    } catch {
+      // Unsubscribing below invalidates the endpoint even if the server is temporarily unavailable.
+    }
+  }
+  await subscription.unsubscribe();
+  state.push = { status: "idle", message: "" };
+}
+
 function notificationContext() {
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const isStandalone = window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone === true;
@@ -1022,7 +1098,10 @@ function notificationContext() {
     permission: "Notification" in window ? Notification.permission : "unsupported",
     secureContext: window.isSecureContext,
     isIOS,
-    isStandalone
+    isStandalone,
+    pushSupported: pushIsSupported(window),
+    serverConfigured: serverPushConfigured,
+    pushStatus: state.push.status
   };
 }
 
@@ -1037,6 +1116,7 @@ async function logout() {
   const saved = await saveCurrentState();
   if (!saved) return showToast("Noura could not save your latest changes, so you were not logged out. Check your connection and try again.", "error");
   try {
+    await disconnectPushSubscription();
     await signOut();
     ++hydrationToken;
     currentUser = null;
@@ -1052,6 +1132,7 @@ async function logout() {
 async function resetData() {
   if (!currentUser || !confirm("Permanently delete your profile, meal history, streaks, and reminders from Noura Cloud? Your login account will remain active.")) return;
   try {
+    await disconnectPushSubscription();
     await deleteCloudState(currentUser.id);
     clearLocalNutritionCache();
     const user = currentUser;
@@ -1112,6 +1193,14 @@ function initials(name) {
 function friendlyError(error) {
   const message = error?.message || "Please try again.";
   if (/fetch|network|load/i.test(message)) return "The model or nutrition database could not be reached. Check your connection, then retry.";
+  return message;
+}
+
+function friendlyPushError(error) {
+  const message = error?.message || "Please try again.";
+  if (/not found|register_noura_push_subscription|schema cache|function/i.test(message)) return "The reminder database update has not been installed yet.";
+  if (/vapid|applicationServerKey|push service|registration/i.test(message)) return "This device could not connect to the Web Push service.";
+  if (/fetch|network/i.test(message)) return "The reminder server could not be reached. Check your connection and try again.";
   return message;
 }
 
