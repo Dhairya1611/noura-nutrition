@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#17362c" />
+    <title>Refreshing Noura</title>
+  </head>
+  <body style="margin:0;background:#f8f6ee;color:#17362c;font-family:system-ui,-apple-system,sans-serif">
+    <main style="min-height:100vh;display:grid;place-items:center">
+      <div style="display:grid;justify-items:center;gap:12px;text-align:center;padding:24px">
+        <span style="display:grid;place-items:center;width:52px;height:52px;border-radius:15px;background:#c9f36a;font-size:24px">◒</span>
+        <strong style="font-size:20px">Refreshing Noura…</strong>
+        <span style="color:#66756f;font-size:14px">Your account and nutrition history will stay signed in.</span>
+      </div>
+    </main>
+    <script>
+      (async () => {
+        const registrations = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistrations() : [];
+        await Promise.all(registrations.map(registration => registration.unregister()));
+        const keys = "caches" in window ? await caches.keys() : [];
+        await Promise.all(keys.filter(key => key.startsWith("noura-shell-")).map(key => caches.delete(key)));
+        location.replace(`./?recovered=${Date.now()}`);
+      })().catch(() => location.replace(`./?recovered=${Date.now()}`));
+    </script>
+  </body>
+</html>

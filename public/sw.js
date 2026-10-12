@@ -1,9 +1,16 @@
-const CACHE = "noura-shell-v4";
+const CACHE = "noura-shell-v5";
 const ROOT = new URL("./", self.location.href).href;
-const SHELL = [ROOT, new URL("manifest.webmanifest", ROOT).href, new URL("icon.svg", ROOT).href];
+const SHELL_ASSETS = [new URL("manifest.webmanifest", ROOT).href, new URL("icon.svg", ROOT).href];
 
 self.addEventListener("install", event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    const rootResponse = await fetch(ROOT, { cache: "no-store" });
+    if (!rootResponse.ok) throw new Error("The Noura app shell could not be downloaded.");
+    await cache.put(ROOT, rootResponse);
+    await cache.addAll(SHELL_ASSETS);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", event => {
@@ -13,14 +20,16 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET" || new URL(event.request.url).origin !== location.origin) return;
   const isNavigation = event.request.mode === "navigate";
-  event.respondWith(fetch(event.request).then(response => {
+  const networkRequest = isNavigation ? new Request(event.request, { cache: "no-store" }) : event.request;
+  const cacheKey = isNavigation ? ROOT : event.request;
+  event.respondWith(fetch(networkRequest).then(response => {
     if (response.ok) {
       const copy = response.clone();
-      caches.open(CACHE).then(cache => cache.put(event.request, copy));
+      caches.open(CACHE).then(cache => cache.put(cacheKey, copy));
     }
     return response;
   }).catch(async () => {
-    const cached = await caches.match(event.request);
+    const cached = await caches.match(cacheKey);
     if (cached) return cached;
     if (isNavigation) return caches.match(ROOT);
     return new Response("Noura is offline and this file is not cached yet.", {

@@ -5,6 +5,8 @@ import { readFile } from "node:fs/promises";
 test("service worker only falls back to the app shell for page navigation", async () => {
   const worker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
   assert.match(worker, /event\.request\.mode === "navigate"/);
+  assert.match(worker, /new Request\(event\.request, \{ cache: "no-store" \}\)/);
+  assert.match(worker, /const cacheKey = isNavigation \? ROOT : event\.request/);
   assert.match(worker, /if \(isNavigation\) return caches\.match\(ROOT\)/);
   assert.match(worker, /status: 503/);
   assert.doesNotMatch(worker, /cached \|\| caches\.match\(ROOT\)/);
@@ -21,4 +23,12 @@ test("the document remains useful while the application bundle starts", async ()
 test("service worker updates bypass the browser HTTP cache", async () => {
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /updateViaCache: "none"/);
+});
+
+test("repair page clears only Noura shell caches before returning to the app", async () => {
+  const repair = await readFile(new URL("../public/repair.html", import.meta.url), "utf8");
+  assert.match(repair, /registration\.unregister\(\)/);
+  assert.match(repair, /key\.startsWith\("noura-shell-"\)/);
+  assert.match(repair, /location\.replace/);
+  assert.doesNotMatch(repair, /localStorage\.clear/);
 });
