@@ -1,4 +1,4 @@
-const CACHE = "noura-shell-v5";
+const CACHE = "noura-shell-v6";
 const ROOT = new URL("./", self.location.href).href;
 const SHELL_ASSETS = [new URL("manifest.webmanifest", ROOT).href, new URL("icon.svg", ROOT).href];
 
@@ -39,7 +39,38 @@ self.addEventListener("fetch", event => {
   }));
 });
 
+self.addEventListener("push", event => {
+  let payload = {};
+  try {
+    payload = event.data?.json() || {};
+  } catch {
+    payload = { body: event.data?.text() || "It’s time to log your next meal." };
+  }
+  event.waitUntil(self.registration.showNotification(payload.title || "Noura meal reminder", {
+    body: payload.body || "Take a quick photo or tell Noura what’s on your plate.",
+    icon: new URL("icon.svg", ROOT).href,
+    badge: new URL("icon.svg", ROOT).href,
+    tag: payload.tag || "noura-meal-reminder",
+    renotify: true,
+    data: { url: payload.url || ROOT }
+  }));
+});
+
 self.addEventListener("notificationclick", event => {
   event.notification.close();
-  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => clients[0]?.focus() || self.clients.openWindow(ROOT)));
+  let target = ROOT;
+  try {
+    const requested = new URL(event.notification.data?.url || ROOT, ROOT);
+    if (requested.origin === self.location.origin) target = requested.href;
+  } catch {
+    target = ROOT;
+  }
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async clients => {
+    const existing = clients.find(client => client.url.startsWith(ROOT));
+    if (existing) {
+      await existing.navigate?.(target);
+      return existing.focus();
+    }
+    return self.clients.openWindow(target);
+  }));
 });
