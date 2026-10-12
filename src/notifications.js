@@ -1,4 +1,4 @@
-export function getNotificationState({ supported, permission, secureContext, isIOS, isStandalone }) {
+export function getNotificationState({ supported, permission, secureContext, isIOS, isStandalone, pushSupported = false, serverConfigured = false, pushStatus = "idle" }) {
   if (!secureContext) {
     return {
       code: "unavailable",
@@ -30,12 +30,42 @@ export function getNotificationState({ supported, permission, secureContext, isI
   }
 
   if (permission === "granted") {
+    if (!pushSupported) {
+      return {
+        code: "limited",
+        label: "Open-app only",
+        title: "Closed-app reminders are not supported here",
+        message: "This browser can show a test notification, but it cannot receive scheduled Web Push messages after Noura closes.",
+        action: "Send test notification"
+      };
+    }
+
+    if (!serverConfigured) {
+      return {
+        code: "limited",
+        label: "Setup needed",
+        title: "Closed-app scheduling is not connected yet",
+        message: "Noura can show local tests, but its Web Push server still needs to be configured.",
+        action: "Check notifications"
+      };
+    }
+
+    if (pushStatus === "connected") {
+      return {
+        code: "granted",
+        label: "Always on",
+        title: "Closed-app reminders are enabled",
+        message: "This device is connected to Noura Push and can receive reminders even after the app or browser is closed.",
+        action: "Send server test"
+      };
+    }
+
     return {
-      code: "granted",
-      label: "Enabled",
-      title: "Notifications are enabled",
-      message: "Use the button below to send a test. Keep Noura open or installed for scheduled meal reminders.",
-      action: "Send test notification"
+      code: "prompt",
+      label: pushStatus === "connecting" ? "Connecting" : "Finish setup",
+      title: pushStatus === "error" ? "Push connection needs attention" : "Connect closed-app reminders",
+      message: pushStatus === "error" ? "Noura could not register this device. Use the button below to try again." : "Notification permission is ready. Connect this device once to receive scheduled reminders while Noura is closed.",
+      action: pushStatus === "connecting" ? "Connecting…" : "Connect reminders"
     };
   }
 
