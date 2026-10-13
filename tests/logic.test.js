@@ -55,6 +55,15 @@ test("recognises lobia and common black-eyed pea names", () => {
   assert.equal(findFood("chawli")?.id, "lobia");
 });
 
+test("recognises dry fruits and common amla preserve spellings", () => {
+  const result = parseMealText("dry fruits, honey amla and amla ka muraba");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["mixed-dry-fruits", "honey-amla", "amla-murabba"]);
+  assert.deepEqual(result.matched.map(food => food.kcal), [170, 65, 90]);
+  assert.equal(findFood("aamla ka murabba")?.id, "amla-murabba");
+  assert.equal(parseMealText("2 pieces honey aamla").matched[0].kcal, 130);
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
