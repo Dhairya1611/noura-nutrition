@@ -43,6 +43,18 @@ test("recognises a bowl of chaap and common soy spellings", () => {
   assert.equal(parseMealText("2 bowls soy chap").matched[0].kcal, 492);
 });
 
+test("recognises lobia and common black-eyed pea names", () => {
+  const bowl = parseMealText("1 bowl lobia");
+  assert.deepEqual(bowl.unknown, []);
+  assert.equal(bowl.matched[0].id, "lobia");
+  assert.equal(bowl.matched[0].servings, 1);
+  assert.equal(bowl.matched[0].kcal, 220);
+  assert.equal(parseMealText("2 bowls lobiya").matched[0].kcal, 440);
+  assert.equal(findFood("black-eyed peas")?.id, "lobia");
+  assert.equal(findFood("cowpeas")?.id, "lobia");
+  assert.equal(findFood("chawli")?.id, "lobia");
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
