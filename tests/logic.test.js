@@ -80,6 +80,16 @@ test("recognises common paratha varieties and spelling variants", () => {
   assert.deepEqual(names.map(name => findFood(name)?.id), ["gobi-paratha", "mooli-paratha", "methi-paratha", "pyaz-paratha", "mixed-veg-paratha", "sattu-paratha", "lachha-paratha", "ajwain-paratha", "egg-paratha", "cheese-paratha"]);
 });
 
+test("keeps aloo methi paratha distinct and recognises Indian chilli pickle", () => {
+  const result = parseMealText("aloo methi prantha and mirch ka achaar");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["aloo-methi-paratha", "mirch-achaar"]);
+  assert.deepEqual(result.matched.map(food => food.kcal), [330, 15]);
+  assert.equal(findFood("methi aloo parantha")?.id, "aloo-methi-paratha");
+  assert.equal(findFood("hari mirch ka achar")?.id, "mirch-achaar");
+  assert.equal(findFood("palak aloo parantha"), null);
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
