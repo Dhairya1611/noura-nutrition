@@ -64,6 +64,22 @@ test("recognises dry fruits and common amla preserve spellings", () => {
   assert.equal(parseMealText("2 pieces honey aamla").matched[0].kcal, 130);
 });
 
+test("recognises anjeer, Hindi dish phrasing, and specific aloo preparations", () => {
+  const result = parseMealText("3 anjeer, aloo ka parantha and aloo ka jhol");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["anjeer", "aloo-paratha", "aloo-jhol"]);
+  assert.equal(result.matched[0].kcal, 75);
+  assert.equal(findFood("aloo ki sabzi")?.id, "aloo-jhol");
+  assert.equal(findFood("aloo fry")?.id, "aloo-fry");
+  assert.equal(findFood("mashed aloo"), null);
+  assert.equal(findFood("boiled aloo")?.id, "potato");
+});
+
+test("recognises common paratha varieties and spelling variants", () => {
+  const names = ["gobhi ka prantha", "mooli paranthas", "methi paratha", "pyaaz ka parantha", "mix veg paratha", "sattu parantha", "laccha paratha", "ajwain parantha", "anda paratha", "cheese parantha"];
+  assert.deepEqual(names.map(name => findFood(name)?.id), ["gobi-paratha", "mooli-paratha", "methi-paratha", "pyaz-paratha", "mixed-veg-paratha", "sattu-paratha", "lachha-paratha", "ajwain-paratha", "egg-paratha", "cheese-paratha"]);
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
