@@ -57,6 +57,18 @@ export function calculateDayScore(totals, targets) {
   return Math.round(Math.min(100, calorieScore + proteinScore + fiberScore + trackedRatio * 15));
 }
 
+export function macroStatus(value, goal) {
+  const actual = Math.max(0, Number(value) || 0);
+  const target = Math.max(0, Number(goal) || 0);
+  const percentage = target ? Math.min(100, Math.round(actual / target * 100)) : 0;
+  if (!target || actual <= target) return { level: "within", over: 0, percentage };
+  return {
+    level: actual >= target * 1.2 ? "danger" : "warning",
+    over: round1(actual - target),
+    percentage
+  };
+}
+
 export function getStreak(logs, now = new Date()) {
   const loggedDays = new Set(logs.map(log => dayKey(normaliseLogDate(log.at, now))));
   let current = 0;
