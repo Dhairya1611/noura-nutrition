@@ -190,17 +190,51 @@ export function chartSeries(logs, period, targets, now = new Date()) {
         const date = normaliseLogDate(log.at, now);
         return date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth();
       });
-      const total = values.reduce((sum, log) => sum + Number(log.kcal || 0), 0);
-      const uniqueDays = new Set(values.map(log => dayKey(normaliseLogDate(log.at, now)))).size || 1;
-      return { label: month.toLocaleDateString("en", { month: "short" }), value: Math.round(total / uniqueDays), target: targets.calories };
+      const loggedDays = new Set(values.map(log => dayKey(normaliseLogDate(log.at, now)))).size;
+      const totals = nutritionSummary(values, loggedDays || 1);
+      return {
+        key: `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`,
+        label: month.toLocaleDateString("en", { month: "short" }),
+        fullLabel: month.toLocaleDateString("en", { month: "long", year: "numeric" }),
+        value: totals.kcal,
+        totals,
+        logCount: values.length,
+        loggedDays,
+        target: targets.calories
+      };
     });
   }
   return Array.from({ length: days }, (_, offset) => {
     const date = new Date(now);
     date.setDate(date.getDate() - (days - 1 - offset));
-    const total = totalsForDate(logs, date).kcal;
-    return { label: period === "week" ? date.toLocaleDateString("en", { weekday: "short" }).slice(0, 1) : String(date.getDate()), value: Math.round(total), target: targets.calories };
+    const key = dayKey(date);
+    const values = logs.filter(log => dayKey(normaliseLogDate(log.at, now)) === key);
+    const totals = nutritionSummary(values);
+    return {
+      key,
+      label: period === "week" ? date.toLocaleDateString("en", { weekday: "short" }).slice(0, 1) : String(date.getDate()),
+      fullLabel: date.toLocaleDateString("en", { weekday: "long", month: "long", day: "numeric" }),
+      value: totals.kcal,
+      totals,
+      logCount: values.length,
+      loggedDays: values.length ? 1 : 0,
+      target: targets.calories
+    };
   });
+}
+
+function nutritionSummary(logs, divisor = 1) {
+  const totals = logs.reduce((summary, log) => {
+    for (const field of ["kcal", "protein", "carbs", "fat", "fiber"]) summary[field] += Number(log[field]) || 0;
+    return summary;
+  }, { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+  return {
+    kcal: Math.round(totals.kcal / divisor),
+    protein: round1(totals.protein / divisor),
+    carbs: round1(totals.carbs / divisor),
+    fat: round1(totals.fat / divisor),
+    fiber: round1(totals.fiber / divisor)
+  };
 }
 
 export function mealTypeForTime(date = new Date()) {
