@@ -34,6 +34,7 @@ const defaults = {
   pendingFoods: [],
   foodLookupToken: null,
   reminderEditor: null,
+  insightSelectionKey: null,
   auth: { status: authPreview ? "anonymous" : cloudConfigured ? "loading" : "unconfigured", mode: "signin", message: "", kind: "", recovery: false },
   sync: { status: "offline", message: "Not signed in" },
   push: { status: "idle", message: "" },
@@ -309,10 +310,18 @@ function renderInsights() {
   const target = targets();
   const series = chartSeries(state.logs, state.period, target);
   const activeValues = series.filter(point => point.value > 0);
+  const selectedPoint = series.find(point => point.key === state.insightSelectionKey) || activeValues.at(-1) || series.at(-1);
   const average = activeValues.length ? Math.round(activeValues.reduce((sum, point) => sum + point.value, 0) / activeValues.length) : 0;
   const max = Math.max(target.calories * 1.25, ...series.map(point => point.value), 1);
   const streak = getStreak(state.logs);
   const onTarget = activeValues.filter(point => point.value >= target.calories * 0.85 && point.value <= target.calories * 1.1).length;
+  const historyMetrics = selectedPoint ? [
+    ["Calories", selectedPoint.totals.kcal.toLocaleString(), "kcal", "energy"],
+    ["Protein", formatNutrient(selectedPoint.totals.protein), "g", "protein"],
+    ["Carbs", formatNutrient(selectedPoint.totals.carbs), "g", "carbs"],
+    ["Fat", formatNutrient(selectedPoint.totals.fat), "g", "fat"],
+    ["Fiber", formatNutrient(selectedPoint.totals.fiber), "g", "fiber"]
+  ] : [];
   return `<section class="page insights-page">
     <div class="page-heading"><div><span class="eyebrow">Your patterns</span><h1>Progress, without the pressure.</h1><p>Look beyond a single meal. Consistency over time is what counts.</p></div><div class="segmented-control period-control">${["week", "month", "year"].map(period => `<button class="${state.period === period ? "active" : ""}" data-period="${period}">${period[0].toUpperCase() + period.slice(1)}</button>`).join("")}</div></div>
     <div class="insight-stats">
@@ -324,9 +333,14 @@ function renderInsights() {
       <div class="card-title-row"><div><span class="eyebrow">Calories</span><h2>${state.period === "week" ? "Last 7 days" : state.period === "month" ? "Last 30 days" : "12-month average"}</h2></div><div class="chart-legend"><i></i>Your intake <span></span>Target</div></div>
       <div class="bar-chart" style="--target-pos:${Math.min(94, (target.calories / max) * 100)}%">
         <div class="target-line"><span>${target.calories}</span></div>
-        ${series.map(point => `<div class="bar-column" title="${point.label}: ${point.value} kcal"><div class="bar-track"><i style="height:${Math.max(point.value ? 5 : 0, (point.value / max) * 100)}%"></i></div><span>${point.label}</span></div>`).join("")}
+        ${series.map(point => {
+          const selected = selectedPoint?.key === point.key;
+          const tooltip = `${point.fullLabel}: ${point.value.toLocaleString()} kcal, ${formatNutrient(point.totals.protein)}g protein, ${formatNutrient(point.totals.fat)}g fat`;
+          return `<button type="button" class="bar-column ${selected ? "selected" : ""}" data-insight-key="${escapeHtml(point.key)}" aria-pressed="${selected}" aria-label="${escapeHtml(tooltip)}. Select for full details." title="${escapeHtml(tooltip)}"><span class="bar-tooltip" aria-hidden="true"><strong>${escapeHtml(point.fullLabel)}</strong><span>${point.value.toLocaleString()} kcal</span><small>${formatNutrient(point.totals.protein)}g protein · ${formatNutrient(point.totals.fat)}g fat</small></span><span class="bar-track"><i style="height:${Math.max(point.value ? 5 : 0, (point.value / max) * 100)}%"></i></span><span class="bar-label">${point.label}</span></button>`;
+        }).join("")}
       </div>
       ${!activeValues.length ? `<div class="chart-empty">Your chart will come alive as you log meals.</div>` : ""}
+      ${selectedPoint ? `<section class="history-detail" aria-live="polite"><div class="history-detail-heading"><div><span class="eyebrow">${state.period === "year" ? "Daily average" : "Selected day"}</span><h3>${escapeHtml(selectedPoint.fullLabel)}</h3></div><p>${selectedPoint.logCount ? state.period === "year" ? `${selectedPoint.loggedDays} logged ${selectedPoint.loggedDays === 1 ? "day" : "days"} · ${selectedPoint.logCount} ${selectedPoint.logCount === 1 ? "entry" : "entries"}` : `${selectedPoint.logCount} ${selectedPoint.logCount === 1 ? "item" : "items"} logged` : "No food logged"}</p></div><div class="history-metrics">${historyMetrics.map(([label, value, unit, kind]) => `<div class="history-metric ${kind}"><span>${label}</span><strong>${value}<small>${unit}</small></strong></div>`).join("")}</div>${!selectedPoint.logCount ? `<p class="history-empty-note">Nothing was recorded for this ${state.period === "year" ? "month" : "day"}. Select another bar to review its nutrition.</p>` : ""}</section>` : ""}
     </article>
     <article class="card insight-callout"><span class="insight-icon">${icon("spark", 24)}</span><div><span class="eyebrow">Noura noticed</span><h3>${getInsight(activeValues, average, target)}</h3><p>Estimates are for awareness, not medical diagnosis. Focus on the direction, not perfect numbers.</p></div></article>
   </section>`;
@@ -530,7 +544,8 @@ function wireAfterRender() {
   document.querySelector("[data-action='manual-focus']")?.addEventListener("click", () => { state.route = "scan"; state.scanMode = "manual"; render(); setTimeout(() => document.querySelector("#meal-text")?.focus(), 50); });
   document.querySelectorAll("[data-delete-log]").forEach(button => button.addEventListener("click", () => { state.logs = state.logs.filter(log => log.id !== button.dataset.deleteLog); persist(); showToast("Meal removed."); }));
   document.querySelectorAll("[data-quick-log]").forEach(button => button.addEventListener("click", () => addFoodLog(FOOD_LIBRARY.find(food => food.id === button.dataset.quickLog))));
-  document.querySelectorAll("[data-period]").forEach(button => button.addEventListener("click", () => { state.period = button.dataset.period; render(); }));
+  document.querySelectorAll("[data-period]").forEach(button => button.addEventListener("click", () => { state.period = button.dataset.period; state.insightSelectionKey = null; render(); }));
+  document.querySelectorAll("[data-insight-key]").forEach(button => button.addEventListener("click", () => { state.insightSelectionKey = button.dataset.insightKey; render(); }));
   document.querySelectorAll("[data-diet]").forEach(button => button.addEventListener("click", () => { state.profile.diet = button.dataset.diet; persist(); render(); }));
   document.querySelectorAll("[data-edit-reminder]").forEach(button => button.addEventListener("click", () => {
     const reminder = state.reminders.find(item => item.id === button.dataset.editReminder);
@@ -1184,6 +1199,10 @@ function dayPart() {
 
 function formatDate(date) {
   return date.toLocaleDateString("en", { weekday: "long", month: "long", day: "numeric" });
+}
+
+function formatNutrient(value) {
+  return Number(value || 0).toLocaleString("en", { maximumFractionDigits: 1 });
 }
 
 function initials(name) {
