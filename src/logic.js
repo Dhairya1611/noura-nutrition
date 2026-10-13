@@ -85,13 +85,14 @@ export function findFood(query) {
     .trim();
   if (!cleaned) return null;
   const exactOnlyAliases = new Set(["aloo", "potato"]);
+  const completeDishMatchRequired = cleaned === "paratha" || cleaned.endsWith(" paratha");
   let best = null;
   for (const food of FOOD_LIBRARY) {
     for (const rawAlias of food.aliases) {
       const alias = normaliseFoodText(rawAlias);
       const pattern = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const exact = cleaned === alias;
-      if (!exact && exactOnlyAliases.has(alias)) continue;
+      if (!exact && (completeDishMatchRequired || exactOnlyAliases.has(alias))) continue;
       if (!exact && !new RegExp(`\\b${pattern}\\b`).test(cleaned)) continue;
       const score = (exact ? 10000 : 0) + alias.length;
       if (!best || score > best.score) best = { food, score };
