@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   adjustReminderTime, calculateDayScore, calculateTargets, chartSeries, findFood, formatReminderTime,
-  parseMealText, recommendNext, reminderTimeParts, setReminderPeriod, totalsForDate
+  macroStatus, parseMealText, recommendNext, reminderTimeParts, setReminderPeriod, totalsForDate
 } from "../src/logic.js";
 import { FOOD_LIBRARY } from "../src/data.js";
 import { getNotificationState } from "../src/notifications.js";
@@ -15,6 +15,12 @@ test("calculates sustainable targets for each goal", () => {
   assert.ok(lose.calories < maintain.calories);
   assert.ok(muscle.calories > maintain.calories);
   assert.ok(muscle.protein > maintain.protein);
+});
+
+test("classifies macro excess with visible warning and danger levels", () => {
+  assert.deepEqual(macroStatus(58, 58), { level: "within", over: 0, percentage: 100 });
+  assert.deepEqual(macroStatus(62, 58), { level: "warning", over: 4, percentage: 100 });
+  assert.deepEqual(macroStatus(70, 58), { level: "danger", over: 12, percentage: 100 });
 });
 
 test("parses natural meal text and quantities", () => {
