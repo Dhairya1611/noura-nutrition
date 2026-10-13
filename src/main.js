@@ -2,7 +2,7 @@ import "./styles.css";
 import { BODY_TYPES, DEFAULT_REMINDERS, FOOD_LIBRARY, GOALS } from "./data.js";
 import {
   calculateDayScore, calculateTargets, chartSeries, dayKey, findFood, getStreak,
-  adjustReminderTime, formatReminderTime, mealTypeForTime, normaliseLogDate, parseMealText,
+  adjustReminderTime, formatReminderTime, macroStatus, mealTypeForTime, normaliseLogDate, parseMealText,
   recommendNext, reminderTimeParts, round1, scaleFood, setReminderPeriod, totalsForDate
 } from "./logic.js";
 import { getNotificationState } from "./notifications.js";
@@ -481,8 +481,11 @@ function emptyMeals() {
 }
 
 function macroMeter(label, value, goal, color) {
-  const percentage = Math.min(100, Math.round(value / goal * 100));
-  return `<div class="macro"><span><i style="background:${color}"></i>${label}</span><strong>${Math.round(value)}<small> / ${goal}g</small></strong><div><i style="width:${percentage}%;background:${color}"></i></div></div>`;
+  const status = macroStatus(value, goal);
+  const warningColor = status.level === "danger" ? "#ff6b63" : status.level === "warning" ? "#ffd166" : color;
+  const alertText = status.level === "danger" ? `High · ${status.over}g over` : status.level === "warning" ? `${status.over}g over` : "";
+  const accessibleStatus = alertText ? `, ${alertText.toLowerCase()}` : ", within target";
+  return `<div class="macro is-${status.level}" aria-label="${label}: ${Math.round(value)} of ${goal} grams${accessibleStatus}"><span><i style="background:${warningColor}"></i>${label}${status.level === "danger" ? `<b aria-hidden="true">!</b>` : ""}</span><strong>${Math.round(value)}<small class="macro-goal"> / ${goal}g</small></strong><div aria-hidden="true"><i style="width:${status.percentage}%;background:${warningColor}"></i></div>${alertText ? `<small class="macro-status">${alertText}</small>` : ""}</div>`;
 }
 
 function statCard(label, value, note, glyph) {
