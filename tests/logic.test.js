@@ -119,6 +119,19 @@ test("year chart always returns twelve months", () => {
   assert.equal(series.length, 12);
 });
 
+test("chart history includes complete nutrition totals for each day", () => {
+  const logs = [
+    { at: "2026-10-08T08:00:00", kcal: 420, protein: 24, carbs: 52, fat: 12, fiber: 7 },
+    { at: "2026-10-08T13:00:00", kcal: 610, protein: 31, carbs: 70, fat: 21, fiber: 10 }
+  ];
+  const series = chartSeries(logs, "week", { calories: 2000 }, new Date("2026-10-09T12:00:00"));
+  const previousDay = series.find(point => point.key === "2026-10-08");
+  assert.equal(previousDay.value, 1030);
+  assert.deepEqual(previousDay.totals, { kcal: 1030, protein: 55, carbs: 122, fat: 33, fiber: 17 });
+  assert.equal(previousDay.logCount, 2);
+  assert.match(previousDay.fullLabel, /Thursday, October 8/);
+});
+
 test("formats and adjusts reminder times without a native time picker", () => {
   assert.equal(formatReminderTime("08:30"), "08:30 AM");
   assert.equal(formatReminderTime("13:05"), "01:05 PM");
