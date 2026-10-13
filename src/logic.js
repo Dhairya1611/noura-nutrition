@@ -79,20 +79,36 @@ export function getStreak(logs, now = new Date()) {
 }
 
 export function findFood(query) {
-  const cleaned = query.toLowerCase().trim().replace(/[_-]/g, " ");
+  const cleaned = normaliseFoodText(query)
+    .replace(/^\s*(?:\d+\s+\d+\s*\/\s*\d+|\d+\s*\/\s*\d+|\d+(?:\.\d+)?|[¼½¾⅓⅔]|one|two|three|half|quarter)\s*/i, "")
+    .replace(/^\s*(?:x|servings?|pieces?|pcs?|bowls?|cups?|plates?|glasses?|slices?|handfuls?)\s*/i, "")
+    .trim();
   if (!cleaned) return null;
+  const exactOnlyAliases = new Set(["aloo", "potato"]);
   let best = null;
   for (const food of FOOD_LIBRARY) {
     for (const rawAlias of food.aliases) {
-      const alias = rawAlias.toLowerCase().trim().replace(/[_-]/g, " ");
+      const alias = normaliseFoodText(rawAlias);
       const pattern = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const exact = cleaned === alias;
+      if (!exact && exactOnlyAliases.has(alias)) continue;
       if (!exact && !new RegExp(`\\b${pattern}\\b`).test(cleaned)) continue;
       const score = (exact ? 10000 : 0) + alias.length;
       if (!best || score > best.score) best = { food, score };
     }
   }
   return best?.food || null;
+}
+
+function normaliseFoodText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]/g, " ")
+    .replace(/\b(?:paratha|parantha|prantha|parontha|prontha)s?\b/g, "paratha")
+    .replace(/\b(?:ka|ki|ke|wala|waala|wali|with|of)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function parseMealText(text) {
