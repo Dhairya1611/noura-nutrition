@@ -1,7 +1,7 @@
 import "./styles.css";
 import { BODY_TYPES, DEFAULT_REMINDERS, FOOD_LIBRARY, GOALS } from "./data.js";
 import {
-  calculateDayScore, calculateTargets, chartSeries, dayKey, findFood, formatFoodPortion, getStreak,
+  calculateDayScore, calculateTargets, chartSeries, dayKey, findFood, findVisualFood, formatFoodPortion, getStreak,
   adjustReminderTime, formatReminderTime, macroStatus, mealTypeForTime, normaliseLogDate, parseMealText,
   recommendNext, reminderTimeParts, round1, scaleFood, setReminderPeriod, totalsForDate
 } from "./logic.js";
@@ -31,6 +31,10 @@ const defaults = {
   scanMode: "photo",
   scanStatus: null,
   scanResults: [],
+  photoPreviewUrl: null,
+  photoScanDepth: "fast",
+  photoElapsedMs: null,
+  photoAiReady: false,
   pendingFoods: [],
   foodLookupToken: null,
   mealDraft: "",
@@ -49,11 +53,14 @@ let syncTimer;
 let currentUser = null;
 let authSubscription = null;
 let hydrationToken = 0;
+let lastPhotoFile = null;
+let foodAiWarmStarted = false;
+let photoScanToken = 0;
 
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], foodLookupToken: null, mealDraft: "", mealConversation: null, reminderEditor: null, auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), push: structuredClone(defaults.push), toast: null };
+    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], photoPreviewUrl: null, photoScanDepth: "fast", photoElapsedMs: null, photoAiReady: false, pendingFoods: [], foodLookupToken: null, mealDraft: "", mealConversation: null, reminderEditor: null, auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), push: structuredClone(defaults.push), toast: null };
   } catch {
     return structuredClone(defaults);
   }
@@ -269,12 +276,13 @@ function renderScanMode() {
       ${renderPendingFoods()}
     </div>`;
   }
-  return `<div class="scanner-zone">
-    <div class="scanner-illustration food-illustration"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><div>🥗</div></div>
-    <h2>Point. Snap. Confirm.</h2>
-    <p>The first scan downloads a ~60 MB Food‑101 model. After that, recognition is cached and runs locally.</p>
-    <label class="upload-button">${icon("camera", 19)} Take or choose photo<input id="food-photo" type="file" accept="image/*" capture="environment" hidden></label>
-    <span class="supported-note">Recognises 101 common dishes · manual correction always available</span>
+  return `<div class="scanner-zone photo-zone">
+    ${state.photoPreviewUrl ? `<div class="photo-preview"><img src="${state.photoPreviewUrl}" alt="Food selected for recognition"><span>${icon("scan", 22)}</span></div>` : `<div class="scanner-illustration food-illustration"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><div>🥗</div></div>`}
+    <h2>${state.photoPreviewUrl ? "Checking what’s on the plate" : "Point. Snap. Confirm."}</h2>
+    <p>${state.photoPreviewUrl ? "Noura checks several possibilities and never adds one without your confirmation." : "The fast scanner warms up while you frame the photo, then checks common foods in a few seconds."}</p>
+    <label class="upload-button">${icon("camera", 19)} ${state.photoPreviewUrl ? "Try another photo" : "Take or choose photo"}<input id="food-photo" type="file" accept="image/*" capture="environment" hidden></label>
+    <span class="supported-note ${state.photoAiReady ? "ready" : ""}">${state.photoAiReady ? "● Fast local scanner ready" : "Fast local scanner: about 4–8 MB · warming up in the background"}</span>
+    <div class="photo-tips"><span>${icon("check", 14)} One dish per photo</span><span>${icon("check", 14)} Bright, close, and unobstructed</span></div>
     ${renderScanStatus()}
     ${renderScanResults()}
   </div>`;
@@ -314,7 +322,11 @@ function renderScanStatus() {
 
 function renderScanResults() {
   if (!state.scanResults.length) return "";
-  return `<div class="result-panel"><span class="eyebrow">AI suggestions</span><p>Tap the closest match, then confirm its portion.</p>${state.scanResults.map((result, index) => `<button data-scan-result="${index}"><span>${result.food?.emoji || "🍽️"}</span><div><strong>${escapeHtml(result.display)}</strong><small>${Math.round(result.score * 100)}% visual match${result.food ? ` · ${result.food.kcal} kcal/serving` : " · search manually"}</small></div>${icon("arrow", 16)}</button>`).join("")}</div>`;
+  const elapsed = state.photoElapsedMs ? ` · ${formatScanTime(state.photoElapsedMs)}` : "";
+  return `<div class="result-panel photo-results"><span class="eyebrow">${state.photoScanDepth === "deep" ? "Deeper scan" : "Fast scan"}${elapsed}</span><p>These are possibilities, not certainties. Tap the closest one to confirm its portion.</p>${state.scanResults.map((result, index) => `<button data-scan-result="${index}"><span>${result.food?.emoji || "🍽️"}</span><div><strong>${escapeHtml(result.food?.name || result.display)}</strong><small>${visualConfidence(result.score)}${result.food ? ` · ${result.food.kcal} kcal/serving` : " · describe it to Noura"}</small></div>${icon("arrow", 16)}</button>`).join("")}
+    <div class="photo-result-actions">${state.photoScanDepth !== "deep" ? `<button type="button" class="outline-button" data-action="deep-photo-scan">${icon("spark", 16)} Try a deeper dish scan</button>` : ""}<button type="button" class="outline-button" data-action="manual-photo-correction">${icon("type", 16)} None of these — tell Noura</button></div>
+    <small class="scan-honesty">Mixed plates and regional dishes can look alike. Noura asks instead of logging a weak guess.</small>
+  </div>`;
 }
 
 function renderPendingFoods() {
@@ -557,8 +569,24 @@ function wireAfterRender() {
   document.querySelector("#auth-form")?.addEventListener("submit", handleAuthSubmit);
   document.querySelector("[data-action='forgot-password']")?.addEventListener("click", handlePasswordResetRequest);
   document.querySelector("#recovery-form")?.addEventListener("submit", handlePasswordUpdate);
-  document.querySelectorAll("[data-route]").forEach(button => button.addEventListener("click", () => { state.route = button.dataset.route; state.reminderEditor = null; render(); scrollTo(0, 0); }));
-  document.querySelectorAll("[data-scan-mode]").forEach(button => button.addEventListener("click", () => { state.scanMode = button.dataset.scanMode; state.scanStatus = null; state.scanResults = []; state.pendingFoods = []; state.foodLookupToken = null; state.mealDraft = ""; state.mealConversation = null; render(); }));
+  document.querySelectorAll("[data-route]").forEach(button => button.addEventListener("click", () => {
+    if (button.dataset.route !== "scan") clearPhotoScan();
+    state.route = button.dataset.route;
+    state.reminderEditor = null;
+    render();
+    scrollTo(0, 0);
+  }));
+  document.querySelectorAll("[data-scan-mode]").forEach(button => button.addEventListener("click", () => {
+    if (button.dataset.scanMode !== "photo") clearPhotoScan();
+    state.scanMode = button.dataset.scanMode;
+    state.scanStatus = null;
+    state.scanResults = [];
+    state.pendingFoods = [];
+    state.foodLookupToken = null;
+    state.mealDraft = "";
+    state.mealConversation = null;
+    render();
+  }));
   document.querySelectorAll("[data-body-type]").forEach(button => button.addEventListener("click", () => { state.onboarding.bodyType = button.dataset.bodyType; render(); }));
   document.querySelectorAll("[data-goal]").forEach(button => button.addEventListener("click", () => { state.onboarding.goal = button.dataset.goal; render(); }));
   document.querySelector("[data-onboarding-next]")?.addEventListener("click", () => { state.onboardingStep += 1; render(); });
@@ -590,6 +618,15 @@ function wireAfterRender() {
     setTimeout(() => { const text = document.querySelector("#meal-text"); text?.focus(); text?.setSelectionRange(text.value.length, text.value.length); }, 50);
   });
   document.querySelectorAll("[data-scan-result]").forEach(button => button.addEventListener("click", () => chooseScanResult(Number(button.dataset.scanResult))));
+  document.querySelector("[data-action='deep-photo-scan']")?.addEventListener("click", () => runPhotoRecognition("deep"));
+  document.querySelector("[data-action='manual-photo-correction']")?.addEventListener("click", () => {
+    const bestGuess = state.scanResults.find(result => result.food)?.food?.name || "";
+    clearPhotoScan();
+    state.scanMode = "manual";
+    state.mealDraft = bestGuess;
+    render();
+    setTimeout(() => document.querySelector("#meal-text")?.focus(), 50);
+  });
   document.querySelectorAll("[data-use-database-food]").forEach(button => button.addEventListener("click", () => {
     const [itemIndex, suggestionIndex] = button.dataset.useDatabaseFood.split(":").map(Number);
     chooseDatabaseFood(itemIndex, suggestionIndex);
@@ -634,6 +671,7 @@ function wireAfterRender() {
   document.querySelector("[data-action='restart-onboarding']")?.addEventListener("click", () => { state.onboarding = { ...state.profile }; state.onboardingStep = 1; state.profile = null; render(); });
   document.querySelector("[data-action='logout']")?.addEventListener("click", logout);
   document.querySelector("[data-action='reset-data']")?.addEventListener("click", resetData);
+  if (state.route === "scan" && state.scanMode === "photo") warmFastFoodAi();
 }
 
 async function handleGoogleAuth() {
@@ -872,27 +910,115 @@ async function initialiseCloud() {
   }
 }
 
+function warmFastFoodAi() {
+  if (foodAiWarmStarted || state.photoAiReady) return;
+  foodAiWarmStarted = true;
+  setTimeout(async () => {
+    try {
+      const { prepareFoodClassifier } = await import("./food-ai.js");
+      await prepareFoodClassifier("fast", progress => {
+        if (progress !== 100 || state.photoAiReady) return;
+        state.photoAiReady = true;
+        if (state.route === "scan" && state.scanMode === "photo" && !state.scanStatus) render();
+      });
+      state.photoAiReady = true;
+      if (state.route === "scan" && state.scanMode === "photo" && !state.scanStatus) render();
+    } catch {
+      foodAiWarmStarted = false;
+    }
+  }, 120);
+}
+
 async function handleFoodPhoto(event) {
   const file = event.target.files?.[0];
   if (!file) return;
-  state.scanResults = [];
-  state.scanStatus = { title: "Preparing local AI", detail: "The first scan may take a minute.", progress: 2 };
+  clearPhotoScan();
+  lastPhotoFile = file;
+  state.photoPreviewUrl = URL.createObjectURL(file);
+  await runPhotoRecognition("fast");
+}
+
+async function runPhotoRecognition(mode = "fast") {
+  if (!lastPhotoFile) return;
+  const token = ++photoScanToken;
+  const startedAt = performance.now();
+  let shownProgress = -10;
+  state.photoScanDepth = mode;
+  state.photoElapsedMs = null;
+  if (mode === "fast") state.scanResults = [];
+  state.scanStatus = {
+    title: mode === "deep" ? "Starting a deeper dish scan" : "Starting the fast scanner",
+    detail: mode === "deep" ? "This optional model is larger, so you can still use the fast suggestions below." : "Usually ready in a few seconds after the first small download.",
+    progress: 3
+  };
   render();
   try {
     const { classifyFoodImage } = await import("./food-ai.js");
-    const results = await classifyFoodImage(file, (progress, title) => {
-      state.scanStatus = { title, detail: progress < 100 ? `${progress}% downloaded` : "Your photo never leaves this device.", progress };
+    const results = await classifyFoodImage(lastPhotoFile, (progress, title) => {
+      if (photoScanToken !== token || (progress < 100 && progress < shownProgress + 8)) return;
+      shownProgress = progress;
+      state.scanStatus = {
+        title,
+        detail: progress < 100
+          ? `${progress}% of the ${mode === "deep" ? "larger optional" : "small fast"} model ready`
+          : "Analysing locally—your photo stays on this device.",
+        progress
+      };
       render();
-    });
-    state.scanResults = results.map(result => {
-      const display = result.label.replaceAll("_", " ").replace(/\b\w/g, char => char.toUpperCase());
-      return { ...result, display, food: findFood(result.label) || findFood(display) };
-    });
-    state.scanStatus = { title: "Scan complete", detail: "Choose the closest match below.", kind: "success" };
+    }, { mode });
+    if (photoScanToken !== token) return;
+    const fresh = normalisePhotoResults(results);
+    state.scanResults = mode === "deep" ? mergePhotoResults(fresh, state.scanResults) : fresh;
+    state.photoElapsedMs = performance.now() - startedAt;
+    const catalogMatches = state.scanResults.filter(result => result.food).length;
+    state.scanStatus = catalogMatches
+      ? { title: `${mode === "deep" ? "Deeper" : "Fast"} scan ready`, detail: `${catalogMatches} catalogue ${catalogMatches === 1 ? "match" : "matches"} found in ${formatScanTime(state.photoElapsedMs)}. Confirm the closest one.`, kind: "success" }
+      : { title: "I’m not certain enough yet", detail: `The scan finished in ${formatScanTime(state.photoElapsedMs)}, but I won’t turn a weak visual clue into the wrong meal.`, kind: "notice" };
   } catch (error) {
-    state.scanStatus = { title: "Local AI couldn’t start", detail: friendlyError(error), kind: "error" };
+    if (photoScanToken !== token) return;
+    state.scanStatus = { title: "Photo scan couldn’t finish", detail: `${friendlyError(error)} You can tell Noura what you see without waiting.`, kind: "error" };
   }
   render();
+}
+
+function normalisePhotoResults(results) {
+  const mapped = results.map(result => {
+    const display = String(result.label || "Food").replaceAll("_", " ").replace(/\b\w/g, char => char.toUpperCase());
+    return { ...result, display, food: findVisualFood(result.label) || findVisualFood(display) };
+  });
+  return [...mapped.filter(result => result.food), ...mapped.filter(result => !result.food).slice(0, 2)].slice(0, 6);
+}
+
+function mergePhotoResults(primary, secondary) {
+  const seen = new Set();
+  return [...primary, ...secondary].filter(result => {
+    const key = result.food?.id || result.display.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 6);
+}
+
+function formatScanTime(milliseconds) {
+  if (milliseconds < 1000) return "under 1 second";
+  return `${(milliseconds / 1000).toFixed(milliseconds < 10000 ? 1 : 0)} seconds`;
+}
+
+function visualConfidence(score) {
+  const percentage = Math.round((Number(score) || 0) * 100);
+  if (percentage >= 50) return `Likely match · ${percentage}% visual confidence`;
+  if (percentage >= 20) return `Possible match · ${percentage}% visual confidence`;
+  return `Low-confidence clue · ${percentage}%`;
+}
+
+function clearPhotoScan() {
+  photoScanToken += 1;
+  if (state.photoPreviewUrl) URL.revokeObjectURL(state.photoPreviewUrl);
+  state.photoPreviewUrl = null;
+  state.photoScanDepth = "fast";
+  state.photoElapsedMs = null;
+  state.scanResults = [];
+  lastPhotoFile = null;
 }
 
 async function handleBarcodePhoto(event) {
@@ -1037,14 +1163,22 @@ function cleanCustomFoodName(value) {
 
 function chooseScanResult(index) {
   const result = state.scanResults[index];
+  const display = result?.display || "This food";
   if (!result?.food) {
+    clearPhotoScan();
     state.scanMode = "manual";
-    state.pendingFoods = [{ unknown: true, name: result?.display || "Unknown food" }];
+    state.pendingFoods = [];
+    state.mealDraft = display;
+    state.mealConversation = null;
+    render();
+    setTimeout(() => document.querySelector("#meal-text")?.focus(), 50);
+    return;
   } else {
+    clearPhotoScan();
     state.pendingFoods = [scaleFood(result.food, 1)];
     state.scanMode = "manual";
+    state.mealConversation = { message: display, phase: "review" };
   }
-  state.mealConversation = { message: result?.display || "This food", phase: state.pendingFoods.some(item => item.unknown) ? "clarify" : "review" };
   render();
 }
 
