@@ -1,4 +1,6 @@
-const SEARCH_ENDPOINT = "https://api.nal.usda.gov/fdc/v1/foods/search";
+const USDA_SEARCH_ENDPOINT = "https://api.nal.usda.gov/fdc/v1/foods/search";
+const OPEN_FOOD_FACTS_SEARCH_ENDPOINT = "https://search.openfoodfacts.org/search";
+const OPEN_FOOD_FACTS_LEGACY_ENDPOINT = "https://world.openfoodfacts.org/cgi/search.pl";
 const DEMO_API_KEY = "DEMO_KEY";
 
 const round1 = value => Math.round((Number(value) || 0) * 10) / 10;
@@ -43,30 +45,121 @@ export function mapUsdaFood(food, query = "food", index = 0) {
   };
 }
 
+export function mapOpenFoodFactsProduct(product, query = "food", index = 0) {
+  const nutrients = product?.nutriments || {};
+  const servingGrams = positiveNumber(product?.serving_quantity);
+  const scale = servingGrams ? servingGrams / 100 : 1;
+  const nutrientValue = name => {
+    const perServing = positiveNumber(nutrients[`${name}_serving`], true);
+    if (perServing != null) return perServing;
+    const perHundred = positiveNumber(nutrients[`${name}_100g`], true);
+    return perHundred == null ? 0 : perHundred * scale;
+  };
+  const kcal = nutrientValue("energy-kcal");
+  if (!Number.isFinite(kcal) || kcal <= 0) return null;
+  const rawName = product?.product_name || product?.generic_name || cleanFoodSearchQuery(query) || "Database food";
+  const serving = product?.serving_size || (servingGrams ? `${round1(servingGrams)} g` : "100 g");
+  return {
+    id: `off-${product?.code || index}`,
+    name: titleCase(String(rawName).toLowerCase()),
+    brand: product?.brands || "Open Food Facts",
+    emoji: "🍽️",
+    serving,
+    grams: round1(servingGrams || 100),
+    servings: 1,
+    kcal: Math.round(kcal),
+    protein: round1(nutrientValue("proteins")),
+    carbs: round1(nutrientValue("carbohydrates")),
+    fat: round1(nutrientValue("fat")),
+    fiber: round1(nutrientValue("fiber")),
+    image: product?.image_front_small_url || "",
+    source: "Open Food Facts"
+  };
+}
+
 export async function searchFoodDatabase(query, fetchImpl = fetch) {
   const cleaned = cleanFoodSearchQuery(query);
   if (!cleaned) return [];
-  const url = new URL(SEARCH_ENDPOINT);
+  let usdaResults = [];
+  let usdaError = null;
+  try {
+    usdaResults = await searchUsda(cleaned, fetchImpl);
+  } catch (error) {
+    usdaError = error;
+  }
+  if (usdaResults.length >= 3) return usdaResults.slice(0, 3);
+
+  let openFoodFactsResults = [];
+  let openFoodFactsError = null;
+  try {
+    openFoodFactsResults = await searchOpenFoodFacts(cleaned, fetchImpl);
+  } catch (error) {
+    openFoodFactsError = error;
+  }
+
+  const combined = uniqueFoods([...usdaResults, ...openFoodFactsResults]).slice(0, 3);
+  if (combined.length) return combined;
+  if (usdaError && openFoodFactsError) {
+    throw new Error("The free global food databases are temporarily unavailable. Enter the nutrition manually below.");
+  }
+  return [];
+}
+
+async function searchUsda(cleaned, fetchImpl) {
+  const url = new URL(USDA_SEARCH_ENDPOINT);
   url.searchParams.set("api_key", DEMO_API_KEY);
   url.searchParams.set("query", cleaned);
   url.searchParams.set("pageSize", "8");
   const response = await fetchImpl(url.toString(), { headers: { Accept: "application/json" } });
   if (!response.ok) {
-    if (response.status === 429) throw new Error("The free food-database limit was reached. Enter the nutrition manually below.");
-    throw new Error("The food database is temporarily unavailable.");
+    throw new Error(response.status === 429 ? "USDA FoodData Central reached its free demo limit." : "USDA FoodData Central is unavailable.");
   }
   const data = await response.json();
-  const seen = new Set();
-  return (data.foods || [])
+  return uniqueFoods((data.foods || [])
     .map((food, index) => mapUsdaFood(food, cleaned, index))
-    .filter(food => {
-      if (!food) return false;
-      const key = `${food.name.toLowerCase()}|${food.brand.toLowerCase()}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 3);
+    .filter(Boolean));
+}
+
+async function searchOpenFoodFacts(cleaned, fetchImpl) {
+  const url = new URL(OPEN_FOOD_FACTS_SEARCH_ENDPOINT);
+  url.searchParams.set("q", cleaned);
+  url.searchParams.set("page_size", "8");
+  url.searchParams.set("langs", "en");
+  url.searchParams.set("fields", "code,product_name,generic_name,brands,serving_size,serving_quantity,nutriments,image_front_small_url");
+  try {
+    const results = await fetchOpenFoodFacts(url, cleaned, fetchImpl);
+    if (results.length) return results;
+  } catch {
+    // The current full-text service may be blocked by an older browser; try the legacy public search below.
+  }
+
+  const legacyUrl = new URL(OPEN_FOOD_FACTS_LEGACY_ENDPOINT);
+  legacyUrl.searchParams.set("search_terms", cleaned);
+  legacyUrl.searchParams.set("search_simple", "1");
+  legacyUrl.searchParams.set("action", "process");
+  legacyUrl.searchParams.set("json", "1");
+  legacyUrl.searchParams.set("page_size", "8");
+  legacyUrl.searchParams.set("fields", "code,product_name,generic_name,brands,serving_size,serving_quantity,nutriments,image_front_small_url");
+  return fetchOpenFoodFacts(legacyUrl, cleaned, fetchImpl);
+}
+
+async function fetchOpenFoodFacts(url, cleaned, fetchImpl) {
+  const response = await fetchImpl(url.toString(), { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("Open Food Facts is unavailable.");
+  const data = await response.json();
+  return uniqueFoods((data.hits || data.products || [])
+    .map((product, index) => mapOpenFoodFactsProduct(product, cleaned, index))
+    .filter(Boolean));
+}
+
+function uniqueFoods(foods) {
+  const seen = new Set();
+  return foods.filter(food => {
+    const key = `${food.name.toLowerCase()}|${String(food.brand || "").toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function positiveNumber(value, allowZero = false) {
