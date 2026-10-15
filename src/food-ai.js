@@ -1,26 +1,97 @@
 import { pipeline, env } from "@huggingface/transformers";
 
-let classifierPromise;
+const FAST_MODEL = "onnx-community/mobilenetv4_conv_small.e2400_r224_in1k";
+const DEEP_MODEL = "onnx-community/swin-finetuned-food101-ONNX";
+const progressListeners = { fast: new Set(), deep: new Set() };
+let fastClassifierPromise;
+let deepClassifierPromise;
 
-export async function classifyFoodImage(file, onProgress = () => {}) {
+export function foodAiRuntime({ webgpu = Boolean(globalThis.navigator?.gpu) } = {}) {
+  return webgpu
+    ? { device: "webgpu", dtype: "fp16", download: "about 8 MB", acceleration: "WebGPU" }
+    : { dtype: "q8", download: "about 4 MB", acceleration: "this device" };
+}
+
+export async function prepareFoodClassifier(mode = "fast", onProgress = () => {}) {
+  const listeners = progressListeners[mode];
+  listeners.add(onProgress);
+  try {
+    if (mode === "deep") {
+      if (!deepClassifierPromise) deepClassifierPromise = createClassifier("deep").catch(error => { deepClassifierPromise = undefined; throw error; });
+      return await deepClassifierPromise;
+    }
+    if (!fastClassifierPromise) fastClassifierPromise = createClassifier("fast").catch(error => { fastClassifierPromise = undefined; throw error; });
+    return await fastClassifierPromise;
+  } finally {
+    listeners.delete(onProgress);
+  }
+}
+
+async function createClassifier(mode) {
   env.allowLocalModels = false;
   env.useBrowserCache = true;
-  if (!classifierPromise) {
-    classifierPromise = pipeline("image-classification", "onnx-community/swin-finetuned-food101-ONNX", {
-      dtype: "q8",
+  const deep = mode === "deep";
+  const runtime = foodAiRuntime();
+  const model = deep ? DEEP_MODEL : FAST_MODEL;
+  const options = deep
+    ? { ...(runtime.device ? { device: runtime.device } : {}), dtype: runtime.device ? "q4f16" : "q4" }
+    : { ...(runtime.device ? { device: runtime.device } : {}), dtype: runtime.dtype };
+  const emit = (progress, title) => progressListeners[mode].forEach(listener => listener(progress, title));
+
+  try {
+    return await pipeline("image-classification", model, {
+      ...options,
       progress_callback: event => {
-        if (event.status === "progress") onProgress(Math.round(event.progress || 0), "Downloading local AI…");
-        if (event.status === "ready") onProgress(100, "AI ready");
+        if (event.status === "progress") emit(Math.round(event.progress || 0), deep ? "Preparing deeper scan…" : "Preparing fast scanner…");
+        if (event.status === "ready") emit(100, deep ? "Deeper scanner ready" : "Fast scanner ready");
+      }
+    });
+  } catch (error) {
+    if (!options.device) throw error;
+    emit(0, "Switching to compatible scanner…");
+    return pipeline("image-classification", model, {
+      dtype: deep ? "q4" : "q8",
+      progress_callback: event => {
+        if (event.status === "progress") emit(Math.round(event.progress || 0), deep ? "Preparing deeper scan…" : "Preparing fast scanner…");
+        if (event.status === "ready") emit(100, deep ? "Deeper scanner ready" : "Fast scanner ready");
       }
     });
   }
-  const classifier = await classifierPromise;
-  onProgress(100, "Analysing your food…");
-  const url = URL.createObjectURL(file);
+}
+
+export async function classifyFoodImage(file, onProgress = () => {}, { mode = "fast" } = {}) {
+  const classifier = await prepareFoodClassifier(mode, onProgress);
+  onProgress(100, mode === "deep" ? "Taking a closer look…" : "Scanning your photo…");
+  const image = await resizeForRecognition(file);
+  const url = URL.createObjectURL(image);
   try {
-    return await classifier(url, { top_k: 5 });
+    return await classifier(url, { top_k: mode === "deep" ? 8 : 10 });
   } finally {
     URL.revokeObjectURL(url);
+  }
+}
+
+async function resizeForRecognition(file) {
+  if (typeof createImageBitmap !== "function") return file;
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  try {
+    const maxSide = Math.max(bitmap.width, bitmap.height);
+    if (maxSide <= 1024) return file;
+    const scale = 1024 / maxSide;
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    if (typeof OffscreenCanvas !== "undefined") {
+      const canvas = new OffscreenCanvas(width, height);
+      canvas.getContext("2d", { alpha: false }).drawImage(bitmap, 0, 0, width, height);
+      return await canvas.convertToBlob({ type: "image/jpeg", quality: 0.86 });
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d", { alpha: false }).drawImage(bitmap, 0, 0, width, height);
+    return await new Promise(resolve => canvas.toBlob(blob => resolve(blob || file), "image/jpeg", 0.86));
+  } finally {
+    bitmap.close();
   }
 }
 
