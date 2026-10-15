@@ -131,6 +131,29 @@ export function findFood(query) {
   return best?.food || null;
 }
 
+const VISUAL_FOOD_OVERRIDES = {
+  "granny smith": "apple",
+  espresso: "coffee",
+  carbonara: "pasta",
+  "french loaf": "bread-toast",
+  "mashed potato": "potato",
+  "hot and sour soup": "soup"
+};
+
+export function findVisualFood(label) {
+  const candidates = [String(label || ""), ...String(label || "").split(",")]
+    .map(normaliseFoodText)
+    .filter(Boolean);
+  for (const candidate of candidates) {
+    const override = VISUAL_FOOD_OVERRIDES[candidate];
+    if (override) return FOOD_LIBRARY.find(food => food.id === override) || null;
+    for (const food of FOOD_LIBRARY) {
+      if (food.aliases.some(alias => normaliseFoodText(alias) === candidate)) return food;
+    }
+  }
+  return null;
+}
+
 function normaliseFoodText(value) {
   return String(value || "")
     .toLowerCase()
