@@ -16,6 +16,7 @@ const rows = [
   ["bhindi-masala", "Bhindi masala", "🫛", "1 cup", 180, 170, 5, 20, 9, 7, ["bhindi", "bhindi masala", "okra", "ladyfinger"], ["fiber", "lunch", "dinner", "vegan", "indian"]],
   ["baingan-bharta", "Baingan bharta", "🍆", "1 cup", 200, 160, 4, 20, 8, 7, ["baingan bharta", "eggplant bharta", "aubergine bharta"], ["fiber", "lunch", "dinner", "vegan", "indian"]],
   ["mixed-veg-curry", "Mixed vegetable curry", "🥘", "1 cup", 220, 190, 6, 28, 7, 7, ["mixed veg curry", "mixed vegetable curry", "veg curry"], ["fiber", "lunch", "dinner", "vegan", "indian"]],
+  ["rajasthani-thali", "Rajasthani thali", "🍱", "1 typical vegetarian thali", 650, 950, 24, 132, 36, 18, ["rajasthani thali", "rajasthani thaali", "rajasthani veg thali", "rajasthani vegetarian thali", "rajasthani meal", "dal baati churma thali", "dal bati churma thali", "dal baati thali", "dal bati thali", "rajsthani thali", "rajesthani thali"], ["protein", "fiber", "lunch", "dinner", "vegetarian", "indian"]],
   ["mushroom-masala", "Mushroom masala", "🍄", "1 cup", 220, 210, 8, 18, 12, 5, ["mushroom masala", "mushroom curry"], ["fiber", "lunch", "dinner", "vegetarian", "indian"]],
   ["aloo-matar", "Aloo matar", "🥔", "1 cup", 220, 220, 6, 37, 7, 7, ["aloo matar", "alu matar", "potato peas"], ["fiber", "lunch", "dinner", "vegan", "indian"]],
   ["aloo-jhol", "Aloo jhol", "🥔", "1 bowl", 250, 230, 5, 38, 7, 6, ["aloo jhol", "alu jhol", "potato jhol", "aloo curry", "alu curry", "potato curry", "aloo sabzi", "aloo ki sabzi"], ["fiber", "lunch", "dinner", "vegan", "indian"]],
