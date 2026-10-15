@@ -25,6 +25,15 @@ test("service worker updates bypass the browser HTTP cache", async () => {
   assert.match(main, /updateViaCache: "none"/);
 });
 
+test("manual meal logging visibly repeats and confirms what Noura heard", async () => {
+  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.match(main, /Noura heard you/);
+  assert.match(main, /Edit what I said/);
+  assert.match(main, /Nothing is logged automatically/);
+  assert.match(main, /data-adjust-pending/);
+  assert.match(main, /I won’t guess and save the wrong food/);
+});
+
 test("service worker displays server push messages when the page is closed", async () => {
   const worker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
   assert.match(worker, /addEventListener\("push"/);
