@@ -27,11 +27,11 @@ For Google sign-in, create a Google Cloud Web OAuth client with `https://dhairya
 
 ## Free AI stack
 
-- Food-photo recognition runs in the browser using Transformers.js and the quantized `onnx-community/swin-finetuned-food101-ONNX` model.
+- Food-photo recognition runs in the browser using Transformers.js. A lightweight MobileNetV4 model provides the fast first scan; the quantized Food-101 Swin model is available as an optional deeper dish scan.
 - Packaged-food nutrition comes from the free Open Food Facts API.
 - Manual meal understanding, scoring, and recommendations run locally from a bundled nutrition catalogue and deterministic rules.
 
-The first photo scan downloads roughly 60 MB of model data, which the browser can cache. A food photo can identify a likely dish but cannot infer exact ingredients or portion weight, so users always confirm an estimate.
+The fast scanner downloads roughly 4–8 MB depending on browser acceleration and warms up when the photo screen opens. The optional deeper scan downloads roughly 53–60 MB and is cached. Large camera photos are resized locally before inference. A photo can suggest likely foods but cannot reliably infer ingredients, preparation, or portion weight, so users always confirm an estimate.
 
 ## Local development
 
