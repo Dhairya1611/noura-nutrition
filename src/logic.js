@@ -69,6 +69,13 @@ export function macroStatus(value, goal) {
   };
 }
 
+export function formatFoodPortion(food = {}) {
+  const serving = String(food.serving || "1 serving").trim();
+  const servings = Number(food.servings);
+  if (!Number.isFinite(servings) || servings <= 0 || servings === 1) return serving;
+  return `${round1(servings)} × ${serving}`;
+}
+
 export function getStreak(logs, now = new Date()) {
   const loggedDays = new Set(logs.map(log => dayKey(normaliseLogDate(log.at, now))));
   let current = 0;
