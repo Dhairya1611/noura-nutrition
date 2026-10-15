@@ -23,9 +23,21 @@ test("classifies macro excess with visible warning and danger levels", () => {
   assert.deepEqual(macroStatus(70, 58), { level: "danger", over: 12, percentage: 100 });
 });
 
-test("shows a single food portion without a redundant 1 times prefix", () => {
-  assert.equal(formatFoodPortion({ serving: "20 almonds", servings: 1 }), "20 almonds");
-  assert.equal(formatFoodPortion({ serving: "1 bowl", servings: 2 }), "2 × 1 bowl");
+test("shows natural food counts without a confusing multiplier", () => {
+  assert.equal(formatFoodPortion({ serving: "1 almond", servings: 1 }), "1 almond");
+  assert.equal(formatFoodPortion({ serving: "1 almond", servings: 20 }), "20 almonds");
+  assert.equal(formatFoodPortion({ serving: "1 bowl", servings: 2 }), "2 bowls");
+});
+
+test("treats an almond as one almond rather than a twenty-almond serving", () => {
+  const one = parseMealText("1 almond").matched[0];
+  const twenty = parseMealText("20 almonds").matched[0];
+  assert.equal(one.serving, "1 almond");
+  assert.equal(one.servings, 1);
+  assert.equal(one.kcal, 7);
+  assert.equal(twenty.servings, 20);
+  assert.equal(twenty.kcal, 140);
+  assert.equal(formatFoodPortion(twenty), "20 almonds");
 });
 
 test("parses natural meal text and quantities", () => {
@@ -116,6 +128,7 @@ test("recognises common regional and fasting thalis plus samak rice and fafda", 
   assert.deepEqual(result.matched.map(food => food.id), ["navratri-thali", "himalayan-thali", "samak-rice", "fafda"]);
   assert.deepEqual(result.matched.map(food => food.kcal), [700, 820, 190, 260]);
   assert.deepEqual(["Punjabi thali", "Gujarati thali", "South Indian thali", "Bengali thali", "Maharashtrian thali", "Kerala thali"].map(name => findFood(name)?.id), ["punjabi-thali", "gujarati-thali", "south-indian-thali", "bengali-thali", "maharashtrian-thali", "kerala-thali"]);
+  assert.equal(parseMealText("1 plate Gujarati fafda").matched[0]?.id, "fafda");
 });
 
 test("ships an expanded catalogue across common food groups", () => {
@@ -123,6 +136,17 @@ test("ships an expanded catalogue across common food groups", () => {
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
   assert.deepEqual(examples.map(name => findFood(name)?.name), [
     "Butter chicken", "Aloo paratha", "Pani puri", "Mango", "Cooked broccoli", "Sweet lassi", "Sushi roll", "Gulab jamun"
+  ]);
+});
+
+test("recognises representative dishes from cuisines around the world", () => {
+  const dishes = [
+    "hummus", "shakshuka", "injera with lentils", "jollof rice", "pad thai", "pho", "ramen", "bibimbap",
+    "nasi goreng", "greek salad", "paella", "ratatouille", "fish and chips", "pierogi", "burrito", "arepa", "feijoada", "ceviche"
+  ];
+  assert.deepEqual(dishes.map(name => findFood(name)?.id), [
+    "hummus", "shakshuka", "injera-lentils", "jollof-rice", "pad-thai", "pho", "ramen", "bibimbap",
+    "nasi-goreng", "greek-salad", "paella", "ratatouille", "fish-chips", "pierogi", "burrito", "arepa", "feijoada", "ceviche"
   ]);
 });
 
