@@ -34,6 +34,18 @@ test("manual meal logging visibly repeats and confirms what Noura heard", async 
   assert.match(main, /I won’t guess and save the wrong food/);
 });
 
+test("photo recognition uses a fast first scan with an optional deeper scan", async () => {
+  const ai = await readFile(new URL("../src/food-ai.js", import.meta.url), "utf8");
+  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.match(ai, /mobilenetv4_conv_small/);
+  assert.match(ai, /swin-finetuned-food101/);
+  assert.match(ai, /resizeForRecognition/);
+  assert.match(main, /Try a deeper dish scan/);
+  assert.match(main, /None of these — tell Noura/);
+  assert.match(main, /Fast local scanner: about 4–8 MB/);
+  assert.doesNotMatch(main, /first scan may take a minute/i);
+});
+
 test("service worker displays server push messages when the page is closed", async () => {
   const worker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
   assert.match(worker, /addEventListener\("push"/);
