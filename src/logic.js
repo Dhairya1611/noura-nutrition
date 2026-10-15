@@ -73,7 +73,18 @@ export function formatFoodPortion(food = {}) {
   const serving = String(food.serving || "1 serving").trim();
   const servings = Number(food.servings);
   if (!Number.isFinite(servings) || servings <= 0 || servings === 1) return serving;
+  const countable = serving.match(/^1\s+([a-z]+)(.*)$/i);
+  if (countable && Number.isInteger(servings)) {
+    const [, unit, detail] = countable;
+    return `${servings} ${pluraliseUnit(unit)}${detail}`;
+  }
   return `${round1(servings)} × ${serving}`;
+}
+
+function pluraliseUnit(unit) {
+  if (/[^aeiou]y$/i.test(unit)) return `${unit.slice(0, -1)}ies`;
+  if (/(?:s|x|z|ch|sh)$/i.test(unit)) return `${unit}es`;
+  return `${unit}s`;
 }
 
 export function getStreak(logs, now = new Date()) {
@@ -170,7 +181,7 @@ function parseMealQuantity(segment) {
 }
 
 function clampQuantity(value) {
-  return Math.max(0.1, Math.min(10, value));
+  return Math.max(0.1, Math.min(100, value));
 }
 
 export function scaleFood(food, servings = 1) {
