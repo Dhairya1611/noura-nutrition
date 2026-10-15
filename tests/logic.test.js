@@ -96,6 +96,15 @@ test("keeps aloo methi paratha distinct and recognises Indian chilli pickle", ()
   assert.equal(findFood("palak aloo parantha"), null);
 });
 
+test("recognises Rajasthani thali and common dal baati thali spellings", () => {
+  const result = parseMealText("1 Rajasthani thali and dal bati churma thali");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["rajasthani-thali", "rajasthani-thali"]);
+  assert.deepEqual(result.matched.map(food => food.kcal), [950, 950]);
+  assert.equal(findFood("Rajasthani thaali")?.serving, "1 typical vegetarian thali");
+  assert.equal(findFood("rajsthani thali")?.id, "rajasthani-thali");
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
