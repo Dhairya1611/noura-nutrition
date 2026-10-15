@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  adjustReminderTime, calculateDayScore, calculateTargets, chartSeries, findFood, formatReminderTime,
+  adjustReminderTime, calculateDayScore, calculateTargets, chartSeries, findFood, formatFoodPortion, formatReminderTime,
   macroStatus, parseMealText, recommendNext, reminderTimeParts, setReminderPeriod, totalsForDate
 } from "../src/logic.js";
 import { FOOD_LIBRARY } from "../src/data.js";
@@ -21,6 +21,11 @@ test("classifies macro excess with visible warning and danger levels", () => {
   assert.deepEqual(macroStatus(58, 58), { level: "within", over: 0, percentage: 100 });
   assert.deepEqual(macroStatus(62, 58), { level: "warning", over: 4, percentage: 100 });
   assert.deepEqual(macroStatus(70, 58), { level: "danger", over: 12, percentage: 100 });
+});
+
+test("shows a single food portion without a redundant 1 times prefix", () => {
+  assert.equal(formatFoodPortion({ serving: "20 almonds", servings: 1 }), "20 almonds");
+  assert.equal(formatFoodPortion({ serving: "1 bowl", servings: 2 }), "2 × 1 bowl");
 });
 
 test("parses natural meal text and quantities", () => {
@@ -103,6 +108,14 @@ test("recognises Rajasthani thali and common dal baati thali spellings", () => {
   assert.deepEqual(result.matched.map(food => food.kcal), [950, 950]);
   assert.equal(findFood("Rajasthani thaali")?.serving, "1 typical vegetarian thali");
   assert.equal(findFood("rajsthani thali")?.id, "rajasthani-thali");
+});
+
+test("recognises common regional and fasting thalis plus samak rice and fafda", () => {
+  const result = parseMealText("navratri thali, himalyan thali, samak chawal and fafda");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["navratri-thali", "himalayan-thali", "samak-rice", "fafda"]);
+  assert.deepEqual(result.matched.map(food => food.kcal), [700, 820, 190, 260]);
+  assert.deepEqual(["Punjabi thali", "Gujarati thali", "South Indian thali", "Bengali thali", "Maharashtrian thali", "Kerala thali"].map(name => findFood(name)?.id), ["punjabi-thali", "gujarati-thali", "south-indian-thali", "bengali-thali", "maharashtrian-thali", "kerala-thali"]);
 });
 
 test("ships an expanded catalogue across common food groups", () => {
