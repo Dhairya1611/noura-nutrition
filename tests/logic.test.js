@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  adjustReminderTime, calculateDayScore, calculateTargets, chartSeries, findFood, formatFoodPortion, formatReminderTime,
+  adjustReminderTime, calculateDayScore, calculateTargets, chartSeries, findFood, findVisualFood, formatFoodPortion, formatReminderTime,
   macroStatus, parseMealText, recommendNext, reminderTimeParts, setReminderPeriod, totalsForDate
 } from "../src/logic.js";
 import { FOOD_LIBRARY } from "../src/data.js";
@@ -54,6 +54,14 @@ test("understands conversational meal phrasing and number words", () => {
   assert.equal(result.matched[0].servings, 2);
   assert.equal(result.matched[1].servings, 1);
   assert.deepEqual(parseMealText("Please add dragon bowl for dinner").unknown, ["dragon bowl"]);
+});
+
+test("maps visual labels conservatively instead of guessing a broad food", () => {
+  assert.equal(findVisualFood("Granny_Smith")?.id, "apple");
+  assert.equal(findVisualFood("chicken_curry")?.id, "chicken-curry");
+  assert.equal(findVisualFood("caesar_salad")?.id, "caesar-salad");
+  assert.equal(findVisualFood("carbonara")?.id, "pasta");
+  assert.equal(findVisualFood("chicken_quesadilla"), null);
 });
 
 test("recognises pear, cucumber fractions, and common muesli spellings", () => {
