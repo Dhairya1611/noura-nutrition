@@ -238,7 +238,7 @@ function renderScanMode() {
   }
   if (state.scanMode === "manual") {
     return `<div class="manual-zone">
-      <div class="manual-heading"><span class="manual-spark">✦</span><div><h2>Tell me naturally</h2><p>I’ll check Noura’s expanded catalogue first, then search the free food database.</p></div></div>
+      <div class="manual-heading"><span class="manual-spark">✦</span><div><h2>Tell me naturally</h2><p>I’ll check Noura’s worldwide catalogue first, then search two free global food databases.</p></div></div>
       <form id="manual-form">
         <label for="meal-text">What did you eat?</label>
         <textarea id="meal-text" name="meal" rows="4" placeholder="Try “2 eggs, 1 bowl of rice and dal”" required></textarea>
@@ -287,7 +287,7 @@ function renderUnmatchedFood(item, index) {
   const suggestions = item.suggestions || [];
   return `<section class="unmatched-food">
     <div class="unmatched-title"><div><span class="eyebrow">Needs confirmation</span><h4>${escapeHtml(item.name)}</h4></div><button type="button" data-remove-pending="${index}" aria-label="Remove ${escapeHtml(item.name)}">×</button></div>
-    ${item.searching ? `<p class="unknown-note">Searching USDA FoodData Central for a close match…</p>` : suggestions.length ? `<p class="lookup-help">Choose the correct database result:</p><div class="database-suggestions">${suggestions.map((food, suggestionIndex) => `<button type="button" data-use-database-food="${index}:${suggestionIndex}"><span>🍽️</span><div><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(food.brand)} · ${escapeHtml(food.serving)} · ${food.kcal} kcal</small></div>${icon("arrow", 15)}</button>`).join("")}</div>` : `<p class="unknown-note">${item.lookupError ? escapeHtml(item.lookupError) : "No reliable database match was found."} Enter the label or your best estimate below.</p>`}
+    ${item.searching ? `<p class="unknown-note">Searching USDA FoodData Central and Open Food Facts for a close match…</p>` : suggestions.length ? `<p class="lookup-help">Choose the correct database result:</p><div class="database-suggestions">${suggestions.map((food, suggestionIndex) => `<button type="button" data-use-database-food="${index}:${suggestionIndex}"><span>🍽️</span><div><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(food.brand)} · ${escapeHtml(food.serving)} · ${food.kcal} kcal</small></div>${icon("arrow", 15)}</button>`).join("")}</div>` : `<p class="unknown-note">${item.lookupError ? escapeHtml(item.lookupError) : "No reliable database match was found."} Enter the label or your best estimate below.</p>`}
     <details class="custom-food-entry" ${suggestions.length ? "" : "open"}>
       <summary>Enter nutrition manually</summary>
       <form data-custom-food="${index}">
@@ -1041,6 +1041,7 @@ async function sendNotification(title, body) {
 async function ensureServiceWorker() {
   if (!("serviceWorker" in navigator)) return null;
   const registration = await navigator.serviceWorker.register(assetUrl("sw.js"), { updateViaCache: "none" });
+  registration.update().catch(() => {});
   if (registration.active) return registration;
   return Promise.race([
     navigator.serviceWorker.ready,
@@ -1238,7 +1239,16 @@ function icon(name, size = 20) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.spark}</svg>`;
 }
 
-if ("serviceWorker" in navigator) window.addEventListener("load", () => ensureServiceWorker().catch(() => {}));
+if ("serviceWorker" in navigator) {
+  const controlledAtLoad = Boolean(navigator.serviceWorker.controller);
+  let reloadingForUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!controlledAtLoad || reloadingForUpdate) return;
+    reloadingForUpdate = true;
+    window.location.reload();
+  });
+  window.addEventListener("load", () => ensureServiceWorker().catch(() => {}));
+}
 window.addEventListener("pageshow", resetGoogleAuthAfterReturn);
 setInterval(checkReminders, 30000);
 initialiseCloud();
