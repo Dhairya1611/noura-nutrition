@@ -33,6 +33,8 @@ const defaults = {
   scanResults: [],
   pendingFoods: [],
   foodLookupToken: null,
+  mealDraft: "",
+  mealConversation: null,
   reminderEditor: null,
   insightSelectionKey: null,
   auth: { status: authPreview ? "anonymous" : cloudConfigured ? "loading" : "unconfigured", mode: "signin", message: "", kind: "", recovery: false },
@@ -51,7 +53,7 @@ let hydrationToken = 0;
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], foodLookupToken: null, reminderEditor: null, auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), push: structuredClone(defaults.push), toast: null };
+    return { ...structuredClone(defaults), ...saved, route: "today", scanStatus: null, scanResults: [], pendingFoods: [], foodLookupToken: null, mealDraft: "", mealConversation: null, reminderEditor: null, auth: structuredClone(defaults.auth), sync: structuredClone(defaults.sync), push: structuredClone(defaults.push), toast: null };
   } catch {
     return structuredClone(defaults);
   }
@@ -214,15 +216,31 @@ function renderScan() {
           <div class="segmented-control">${modes.map(([mode, glyph, label]) => `<button class="${state.scanMode === mode ? "active" : ""}" data-scan-mode="${mode}">${icon(glyph, 18)}${label}</button>`).join("")}</div>
           ${renderScanMode()}
         </article>
-        <aside class="card estimate-card">
-          <span class="eyebrow">A better estimate</span>
-          <h2>Portion is everything.</h2>
-          <div class="tip-visual"><div>½</div><div class="active">1×</div><div>1½</div></div>
-          <p>A photo can identify a dish, not weigh it. Confirm the serving size for a more useful calorie estimate.</p>
-          <div class="trust-row">${icon("shield", 20)}<span><strong>Private by design</strong>Your photo is processed locally and is not uploaded to Noura.</span></div>
-        </aside>
+        ${renderScanGuide()}
       </div>
     </section>`;
+}
+
+function renderScanGuide() {
+  if (state.scanMode === "manual") {
+    return `<aside class="card listening-guide">
+      <span class="eyebrow">You stay in control</span>
+      <h2>Noura listens, then checks.</h2>
+      <div class="listening-steps">
+        <div><span>1</span><p><strong>Say it your way</strong>Include portions, preparation, or extras when you know them.</p></div>
+        <div><span>2</span><p><strong>See what I heard</strong>I repeat the meal back and flag anything uncertain.</p></div>
+        <div><span>3</span><p><strong>Confirm before saving</strong>Adjust servings or correct a match. Nothing is logged automatically.</p></div>
+      </div>
+      <div class="trust-row">${icon("shield", 20)}<span><strong>Your words remain yours</strong>Noura uses them only to prepare this meal estimate.</span></div>
+    </aside>`;
+  }
+  return `<aside class="card estimate-card">
+    <span class="eyebrow">A better estimate</span>
+    <h2>Portion is everything.</h2>
+    <div class="tip-visual"><div>½</div><div class="active">1×</div><div>1½</div></div>
+    <p>A photo can identify a dish, not weigh it. Confirm the serving size for a more useful calorie estimate.</p>
+    <div class="trust-row">${icon("shield", 20)}<span><strong>Private by design</strong>Your photo is processed locally and is not uploaded to Noura.</span></div>
+  </aside>`;
 }
 
 function renderScanMode() {
@@ -238,13 +256,15 @@ function renderScanMode() {
   }
   if (state.scanMode === "manual") {
     return `<div class="manual-zone">
-      <div class="manual-heading"><span class="manual-spark">✦</span><div><h2>Tell me naturally</h2><p>I’ll check Noura’s worldwide catalogue first, then search two free global food databases.</p></div></div>
+      <div class="manual-heading"><span class="manual-spark">✦</span><div><h2>Tell me in your own words</h2><p>I’ll repeat what I understood before anything is added.</p></div></div>
       <form id="manual-form">
-        <label for="meal-text">What did you eat?</label>
-        <textarea id="meal-text" name="meal" rows="4" placeholder="Try “2 eggs, 1 bowl of rice and dal”" required></textarea>
+        <label for="meal-text">Write it the way you would say it</label>
+        <textarea id="meal-text" name="meal" rows="4" placeholder="For example: “I had two aloo parathas and a bowl of curd for lunch”" required>${escapeHtml(state.mealDraft)}</textarea>
+        <p class="input-help">Portion, cooking style, sauces, and sides help me give a better estimate—but everyday language is fine.</p>
         <div class="examples"><span>Try:</span><button type="button" data-example="2 eggs and a banana">2 eggs + banana</button><button type="button" data-example="1 roti, dal and salad">roti + dal + salad</button></div>
-        <button class="big-submit">Estimate my meal ${icon("spark", 19)}</button>
+        <button class="big-submit">Tell me what you heard ${icon("spark", 19)}</button>
       </form>
+      ${renderMealConversation()}
       ${renderScanStatus()}
       ${renderPendingFoods()}
     </div>`;
@@ -258,6 +278,33 @@ function renderScanMode() {
     ${renderScanStatus()}
     ${renderScanResults()}
   </div>`;
+}
+
+function renderMealConversation() {
+  if (!state.mealConversation) return "";
+  const known = state.pendingFoods.filter(item => !item.unknown);
+  const unknown = state.pendingFoods.filter(item => item.unknown);
+  const totalKcal = known.reduce((sum, item) => sum + item.kcal, 0);
+  const phase = state.mealConversation.phase;
+  const title = phase === "searching"
+    ? `I heard ${known.length ? `${known.length} ${known.length === 1 ? "item" : "items"} clearly` : "you"}. I’m checking the rest.`
+    : unknown.length
+      ? "I understood part of that—and I need one detail."
+      : known.length
+        ? `I heard ${known.length} ${known.length === 1 ? "item" : "items"}, about ${totalKcal} kcal.`
+        : "I’m listening—tell me what I missed.";
+  const detail = phase === "searching"
+    ? "I’m looking for the closest reliable matches now."
+    : unknown.length
+      ? "Choose the closest match below or enter your own details. I won’t guess and save the wrong food."
+      : "Check the portions below. You can adjust them before anything is saved.";
+  return `<section class="listening-conversation ${unknown.length ? "needs-help" : ""}" aria-live="polite">
+    <div class="speech-row user-speech"><span>You said</span><p>“${escapeHtml(state.mealConversation.message)}”</p></div>
+    <div class="speech-row noura-speech"><span class="noura-listening-mark">${icon("spark", 17)}</span><div><span>Noura heard you</span><strong>${escapeHtml(title)}</strong><p>${escapeHtml(detail)}</p>
+      <div class="heard-items">${known.map(food => `<span class="heard"><b>✓</b>${escapeHtml(food.name)}</span>`).join("")}${unknown.map(food => `<span class="uncertain"><b>?</b>${escapeHtml(cleanCustomFoodName(food.name))}</span>`).join("")}</div>
+      <button type="button" class="edit-message" data-action="edit-meal-message">${icon("type", 14)} Edit what I said</button>
+    </div></div>
+  </section>`;
 }
 
 function renderScanStatus() {
@@ -277,7 +324,7 @@ function renderPendingFoods() {
   const unknown = indexed.filter(({ item }) => item.unknown);
   return `<div class="pending-panel">
     <div class="card-title-row"><div><span class="eyebrow">Meal estimate</span><h3>${known.length} ${known.length === 1 ? "item" : "items"} ready</h3></div><strong>${known.reduce((sum, { item }) => sum + item.kcal, 0)} kcal</strong></div>
-    ${known.map(({ item: food, index }) => `<div class="pending-row"><span>${food.emoji}</span><div><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(formatFoodPortion(food))}</small>${food.source ? `<small>${escapeHtml(food.source)}</small>` : ""}</div><span>${food.kcal} kcal</span><button data-remove-pending="${index}" aria-label="Remove ${escapeHtml(food.name)}">×</button></div>`).join("")}
+    ${known.map(({ item: food, index }) => `<div class="pending-row"><span>${food.emoji}</span><div class="pending-info"><strong>${escapeHtml(food.name)}</strong><div class="portion-editor" aria-label="Adjust ${escapeHtml(food.name)} servings"><button type="button" data-adjust-pending="${index}:-1" aria-label="Decrease ${escapeHtml(food.name)} portion" ${Number(food.servings || 1) <= 1 ? "disabled" : ""}>−</button><span>${escapeHtml(formatFoodPortion(food))}</span><button type="button" data-adjust-pending="${index}:1" aria-label="Increase ${escapeHtml(food.name)} portion">+</button></div>${food.source ? `<small>${escapeHtml(food.source)}</small>` : ""}</div><span class="pending-kcal">${food.kcal} kcal</span><button type="button" class="remove-pending" data-remove-pending="${index}" aria-label="Remove ${escapeHtml(food.name)}">×</button></div>`).join("")}
     ${unknown.map(({ item, index }) => renderUnmatchedFood(item, index)).join("")}
     ${known.length && !unknown.length ? `<button class="big-submit" data-action="log-pending">Add meal to today ${icon("check", 18)}</button>` : ""}
   </div>`;
@@ -286,8 +333,8 @@ function renderPendingFoods() {
 function renderUnmatchedFood(item, index) {
   const suggestions = item.suggestions || [];
   return `<section class="unmatched-food">
-    <div class="unmatched-title"><div><span class="eyebrow">Needs confirmation</span><h4>${escapeHtml(item.name)}</h4></div><button type="button" data-remove-pending="${index}" aria-label="Remove ${escapeHtml(item.name)}">×</button></div>
-    ${item.searching ? `<p class="unknown-note">Searching USDA FoodData Central and Open Food Facts for a close match…</p>` : suggestions.length ? `<p class="lookup-help">Choose the correct database result:</p><div class="database-suggestions">${suggestions.map((food, suggestionIndex) => `<button type="button" data-use-database-food="${index}:${suggestionIndex}"><span>🍽️</span><div><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(food.brand)} · ${escapeHtml(food.serving)} · ${food.kcal} kcal</small></div>${icon("arrow", 15)}</button>`).join("")}</div>` : `<p class="unknown-note">${item.lookupError ? escapeHtml(item.lookupError) : "No reliable database match was found."} Enter the label or your best estimate below.</p>`}
+    <div class="unmatched-title"><div><span class="eyebrow">Help me understand</span><h4>What did you mean by “${escapeHtml(item.name)}”?</h4></div><button type="button" data-remove-pending="${index}" aria-label="Remove ${escapeHtml(item.name)}">×</button></div>
+    ${item.searching ? `<p class="unknown-note listening">I heard it. I’m searching USDA FoodData Central and Open Food Facts for the closest match…</p>` : suggestions.length ? `<p class="lookup-help">Tap the option that sounds right. If none do, add your own details below.</p><div class="database-suggestions">${suggestions.map((food, suggestionIndex) => `<button type="button" data-use-database-food="${index}:${suggestionIndex}"><span>🍽️</span><div><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(food.brand)} · ${escapeHtml(food.serving)} · ${food.kcal} kcal</small></div><span class="suggestion-action">Use this</span></button>`).join("")}</div>` : `<p class="unknown-note">${item.lookupError ? escapeHtml(item.lookupError) : "I couldn’t find a reliable match."} Add the label or your best estimate below so I don’t record the wrong food.</p>`}
     <details class="custom-food-entry" ${suggestions.length ? "" : "open"}>
       <summary>Enter nutrition manually</summary>
       <form data-custom-food="${index}">
@@ -511,7 +558,7 @@ function wireAfterRender() {
   document.querySelector("[data-action='forgot-password']")?.addEventListener("click", handlePasswordResetRequest);
   document.querySelector("#recovery-form")?.addEventListener("submit", handlePasswordUpdate);
   document.querySelectorAll("[data-route]").forEach(button => button.addEventListener("click", () => { state.route = button.dataset.route; state.reminderEditor = null; render(); scrollTo(0, 0); }));
-  document.querySelectorAll("[data-scan-mode]").forEach(button => button.addEventListener("click", () => { state.scanMode = button.dataset.scanMode; state.scanStatus = null; state.scanResults = []; state.pendingFoods = []; state.foodLookupToken = null; render(); }));
+  document.querySelectorAll("[data-scan-mode]").forEach(button => button.addEventListener("click", () => { state.scanMode = button.dataset.scanMode; state.scanStatus = null; state.scanResults = []; state.pendingFoods = []; state.foodLookupToken = null; state.mealDraft = ""; state.mealConversation = null; render(); }));
   document.querySelectorAll("[data-body-type]").forEach(button => button.addEventListener("click", () => { state.onboarding.bodyType = button.dataset.bodyType; render(); }));
   document.querySelectorAll("[data-goal]").forEach(button => button.addEventListener("click", () => { state.onboarding.goal = button.dataset.goal; render(); }));
   document.querySelector("[data-onboarding-next]")?.addEventListener("click", () => { state.onboardingStep += 1; render(); });
@@ -535,14 +582,28 @@ function wireAfterRender() {
   document.querySelector("#barcode-photo")?.addEventListener("change", handleBarcodePhoto);
   document.querySelector("#barcode-form")?.addEventListener("submit", event => { event.preventDefault(); lookupProduct(new FormData(event.currentTarget).get("barcode")); });
   document.querySelector("#manual-form")?.addEventListener("submit", handleManualMeal);
-  document.querySelectorAll("[data-example]").forEach(button => button.addEventListener("click", () => { const text = document.querySelector("#meal-text"); text.value = button.dataset.example; text.focus(); }));
+  document.querySelector("#meal-text")?.addEventListener("input", event => { state.mealDraft = event.currentTarget.value; });
+  document.querySelectorAll("[data-example]").forEach(button => button.addEventListener("click", () => { const text = document.querySelector("#meal-text"); state.mealDraft = button.dataset.example; text.value = state.mealDraft; text.focus(); }));
+  document.querySelector("[data-action='edit-meal-message']")?.addEventListener("click", () => {
+    state.mealDraft = state.mealConversation?.message || "";
+    render();
+    setTimeout(() => { const text = document.querySelector("#meal-text"); text?.focus(); text?.setSelectionRange(text.value.length, text.value.length); }, 50);
+  });
   document.querySelectorAll("[data-scan-result]").forEach(button => button.addEventListener("click", () => chooseScanResult(Number(button.dataset.scanResult))));
   document.querySelectorAll("[data-use-database-food]").forEach(button => button.addEventListener("click", () => {
     const [itemIndex, suggestionIndex] = button.dataset.useDatabaseFood.split(":").map(Number);
     chooseDatabaseFood(itemIndex, suggestionIndex);
   }));
   document.querySelectorAll("[data-custom-food]").forEach(form => form.addEventListener("submit", handleCustomFood));
-  document.querySelectorAll("[data-remove-pending]").forEach(button => button.addEventListener("click", () => { state.pendingFoods.splice(Number(button.dataset.removePending), 1); render(); }));
+  document.querySelectorAll("[data-adjust-pending]").forEach(button => button.addEventListener("click", () => {
+    const [itemIndex, direction] = button.dataset.adjustPending.split(":").map(Number);
+    adjustPendingPortion(itemIndex, direction);
+  }));
+  document.querySelectorAll("[data-remove-pending]").forEach(button => button.addEventListener("click", () => {
+    state.pendingFoods.splice(Number(button.dataset.removePending), 1);
+    refreshMealConversation();
+    render();
+  }));
   document.querySelector("[data-action='log-pending']")?.addEventListener("click", logPendingFoods);
   document.querySelector("[data-action='manual-focus']")?.addEventListener("click", () => { state.route = "scan"; state.scanMode = "manual"; render(); setTimeout(() => document.querySelector("#meal-text")?.focus(), 50); });
   document.querySelectorAll("[data-delete-log]").forEach(button => button.addEventListener("click", () => { state.logs = state.logs.filter(log => log.id !== button.dataset.deleteLog); persist(); showToast("Meal removed."); }));
@@ -867,11 +928,14 @@ async function lookupProduct(code) {
 
 async function handleManualMeal(event) {
   event.preventDefault();
-  const result = parseMealText(new FormData(event.currentTarget).get("meal"));
+  const message = String(new FormData(event.currentTarget).get("meal") || "").trim();
+  const result = parseMealText(message);
   const token = `${Date.now()}-${Math.random()}`;
   state.foodLookupToken = token;
+  state.mealDraft = "";
+  state.mealConversation = { message, phase: result.unknown.length ? "searching" : "review" };
   state.pendingFoods = [...result.matched, ...result.unknown.map(name => ({ unknown: true, name, searching: true, suggestions: [] }))];
-  state.scanStatus = result.unknown.length ? { title: "Searching the wider food database", detail: `Checking ${result.unknown.length} unmatched ${result.unknown.length === 1 ? "item" : "items"}…`, progress: 45 } : null;
+  state.scanStatus = null;
   render();
   if (!result.unknown.length) return;
 
@@ -886,16 +950,14 @@ async function handleManualMeal(event) {
     }));
     if (state.foodLookupToken !== token) return;
     state.pendingFoods = [...result.matched, ...lookedUp];
-    const found = lookedUp.reduce((sum, item) => sum + item.suggestions.length, 0);
-    const failed = lookedUp.filter(item => item.lookupError).length;
-    state.scanStatus = failed === lookedUp.length
-      ? { title: "Database unavailable", detail: "You can still enter every food manually below.", kind: "error" }
-      : { title: found ? "Database suggestions ready" : "Manual details needed", detail: found ? "Choose a match, or enter the nutrition yourself." : "No reliable match found; use the always-available custom entry.", kind: "success" };
+    state.mealConversation = { ...state.mealConversation, phase: "clarify" };
+    state.scanStatus = null;
     render();
   } catch (error) {
     if (state.foodLookupToken !== token) return;
     state.pendingFoods = state.pendingFoods.map(item => item.unknown ? { ...item, searching: false, lookupError: friendlyError(error) } : item);
-    state.scanStatus = { title: "Database unavailable", detail: "You can still enter every food manually below.", kind: "error" };
+    state.mealConversation = { ...state.mealConversation, phase: "clarify" };
+    state.scanStatus = null;
     render();
   }
 }
@@ -906,6 +968,7 @@ function chooseDatabaseFood(itemIndex, suggestionIndex) {
   if (!item?.unknown || !food) return;
   state.pendingFoods[itemIndex] = food;
   state.scanStatus = null;
+  refreshMealConversation();
   render();
 }
 
@@ -932,6 +995,35 @@ function handleCustomFood(event) {
     source: "Custom entry"
   };
   state.scanStatus = null;
+  refreshMealConversation();
+  render();
+}
+
+function refreshMealConversation() {
+  if (!state.mealConversation) return;
+  state.mealConversation = {
+    ...state.mealConversation,
+    phase: state.pendingFoods.some(item => item.unknown) ? "clarify" : "review"
+  };
+}
+
+function adjustPendingPortion(index, direction) {
+  const food = state.pendingFoods[index];
+  if (!food || food.unknown) return;
+  const current = Math.max(0.5, Number(food.servings) || 1);
+  const next = direction > 0 ? (current < 1 ? 1 : Math.min(100, current + 1)) : Math.max(1, current - 1);
+  if (next === current) return;
+  const ratio = next / current;
+  state.pendingFoods[index] = {
+    ...food,
+    servings: next,
+    kcal: Math.round(food.kcal * ratio),
+    protein: round1(food.protein * ratio),
+    carbs: round1(food.carbs * ratio),
+    fat: round1(food.fat * ratio),
+    fiber: round1(food.fiber * ratio)
+  };
+  refreshMealConversation();
   render();
 }
 
@@ -952,6 +1044,7 @@ function chooseScanResult(index) {
     state.pendingFoods = [scaleFood(result.food, 1)];
     state.scanMode = "manual";
   }
+  state.mealConversation = { message: result?.display || "This food", phase: state.pendingFoods.some(item => item.unknown) ? "clarify" : "review" };
   render();
 }
 
@@ -960,6 +1053,8 @@ function logPendingFoods() {
   foods.forEach(addFoodLog);
   state.pendingFoods = [];
   state.scanResults = [];
+  state.mealDraft = "";
+  state.mealConversation = null;
   state.route = "today";
   persist();
   showToast(`${foods.length} ${foods.length === 1 ? "item" : "items"} added to today.`);
