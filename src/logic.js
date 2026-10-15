@@ -143,7 +143,7 @@ function normaliseFoodText(value) {
 }
 
 export function parseMealText(text) {
-  const segments = text.toLowerCase().replace(/\band\b/g, ",").split(/[,;+]/).map(item => item.trim()).filter(Boolean);
+  const segments = text.toLowerCase().replace(/\b(?:and|plus)\b/g, ",").split(/[,;+]/).map(cleanMealSegment).filter(Boolean);
   const matched = [];
   const unknown = [];
   for (const segment of segments) {
@@ -156,6 +156,14 @@ export function parseMealText(text) {
     matched.push(scaleFood(food, quantity));
   }
   return { matched, unknown };
+}
+
+function cleanMealSegment(segment) {
+  return String(segment || "")
+    .replace(/^\s*(?:(?:i|we)\s+(?:had|ate|drank|took)|my meal (?:was|included)|please add|log)\s+/i, "")
+    .replace(/\s+(?:(?:for|at|during)\s+)?(?:breakfast|brunch|lunch|dinner|supper|snack|today|tonight)\s*$/i, "")
+    .replace(/^\s*(?:a|an)\s+(?=(?:bowl|cup|plate|glass|slice|handful|piece)\b)/i, "1 ")
+    .trim();
 }
 
 function parseMealQuantity(segment) {
@@ -175,6 +183,9 @@ function parseMealQuantity(segment) {
 
   if (/(?:^|\s)half(?:\s+(?:an?|of))?(?=\s)/.test(segment)) return 0.5;
   if (/(?:^|\s)quarter(?:\s+(?:of))?(?=\s)/.test(segment)) return 0.25;
+
+  const wordNumber = segment.match(/(?:^|\s)(one|two|three|four|five|six|seven|eight|nine|ten)(?=\s|$)/);
+  if (wordNumber) return { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[wordNumber[1]];
 
   const number = segment.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*(?:x|servings?|pieces?|pcs?|bowls?|cups?|plates?|eggs?)?(?=\s|$)/);
   return number ? clampQuantity(Number(number[1])) : 1;
