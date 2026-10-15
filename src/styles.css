@@ -139,6 +139,9 @@ p { color: var(--muted); line-height: 1.55; }
 .scanner-illustration { width: 184px; height: 154px; display: grid; place-items: center; position: relative; color: var(--ink); }
 .food-illustration { background: #edf2e9; border-radius: 36px; }
 .food-illustration > div { font-size: 4.8rem; filter: drop-shadow(0 9px 8px rgba(22,55,43,.14)); }
+.photo-preview { width: min(100%, 320px); aspect-ratio: 4 / 3; position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 22px; background: #edf2e9; box-shadow: 0 10px 30px rgba(20,48,38,.1); }
+.photo-preview img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.photo-preview > span { position: absolute; right: 11px; bottom: 11px; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; color: var(--ink); background: rgba(201,243,106,.94); box-shadow: 0 4px 14px rgba(23,54,44,.2); }
 .corner { position: absolute; width: 28px; height: 28px; border-color: var(--ink); border-style: solid; }
 .corner.tl { top: -8px; left: -8px; border-width: 3px 0 0 3px; border-radius: 8px 0 0; }
 .corner.tr { top: -8px; right: -8px; border-width: 3px 3px 0 0; border-radius: 0 8px 0 0; }
@@ -148,6 +151,9 @@ p { color: var(--muted); line-height: 1.55; }
 .barcode-illustration span { position: absolute; left: 25px; right: 25px; top: 45%; height: 2px; background: #ef6e5d; box-shadow: 0 0 8px #ef6e5d; }
 .upload-button { margin-top: 11px; padding: 12px 18px; border-radius: 12px; background: var(--ink); color: white; display: inline-flex; align-items: center; gap: 9px; font-weight: 700; font-size: .8rem; cursor: pointer; }
 .supported-note { margin-top: 12px; color: #8a9892; font-size: .67rem; }
+.supported-note.ready { color: #4d735f; font-weight: 700; }
+.photo-tips { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px 13px; margin-top: 12px; color: #75857e; font-size: .64rem; }
+.photo-tips span { display: inline-flex; align-items: center; gap: 4px; }
 .estimate-card { padding: 28px; height: max-content; background: #fff7e7; }
 .estimate-card h2 { font-size: 1.9rem; margin: 7px 0 16px; }
 .estimate-card > p { font-size: .84rem; }
@@ -176,6 +182,7 @@ p { color: var(--muted); line-height: 1.55; }
 .inline-form button { border: 0; border-radius: 10px; padding: 0 16px; background: var(--lime); font-weight: 800; cursor: pointer; }
 .scan-status { margin-top: 20px; width: min(100%, 500px); padding: 12px; display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; text-align: left; border-radius: 12px; background: #eef2ed; position: relative; overflow: hidden; }
 .scan-status.success { background: #ebf8d5; }
+.scan-status.notice { background: #fff8e9; }
 .scan-status.error { background: #fff0ed; color: #8c362d; }
 .scan-status > div { display: grid; }
 .scan-status strong { font-size: .76rem; }
@@ -188,11 +195,14 @@ p { color: var(--muted); line-height: 1.55; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .result-panel { margin-top: 18px; width: min(100%, 540px); padding: 16px; border: 1px solid var(--line); border-radius: 15px; text-align: left; }
 .result-panel > p { font-size: .72rem; margin: 4px 0 8px; }
-.result-panel button { width: 100%; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; border: 0; border-top: 1px solid #ecece5; background: transparent; text-align: left; padding: 10px 2px; cursor: pointer; }
-.result-panel button > span { font-size: 1.35rem; }
-.result-panel button div { display: grid; }
-.result-panel button strong { font-size: .78rem; }
-.result-panel button small { font-size: .66rem; color: var(--muted); }
+.result-panel > button { width: 100%; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; border: 0; border-top: 1px solid #ecece5; background: transparent; text-align: left; padding: 10px 2px; cursor: pointer; }
+.result-panel > button > span { font-size: 1.35rem; }
+.result-panel > button > div { display: grid; }
+.result-panel > button strong { font-size: .78rem; }
+.result-panel > button small { font-size: .66rem; color: var(--muted); }
+.photo-result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 13px; padding-top: 13px; border-top: 1px solid #ecece5; }
+.photo-result-actions .outline-button { width: 100%; min-height: 42px; padding: 9px 10px; background: white; font-size: .67rem; }
+.scan-honesty { display: block; margin-top: 10px; color: #83918b; font-size: .61rem; line-height: 1.45; text-align: center; }
 .manual-zone { padding: 32px 26px; max-width: 680px; margin: 0 auto; }
 .manual-heading { display: flex; gap: 14px; align-items: center; margin-bottom: 24px; }
 .manual-heading h2 { margin: 0 0 4px; }
@@ -607,6 +617,7 @@ p { color: var(--muted); line-height: 1.55; }
   .segmented-control { width: 100%; }
   .segmented-control button { flex: 1; padding: 9px 7px; font-size: .67rem; }
   .scanner-zone { padding: 37px 8px 18px; }
+  .photo-preview { width: min(100%, 300px); }
   .estimate-card { display: block; padding: 22px; }
   .listening-guide { display: block; padding: 22px; }
   .listening-guide h2 { font-size: 1.55rem; margin-bottom: 19px; }
@@ -675,6 +686,7 @@ p { color: var(--muted); line-height: 1.55; }
   .recommendation-card { padding: 20px; }
   .inline-form { flex-direction: column; }
   .inline-form button { padding: 11px; }
+  .photo-result-actions { grid-template-columns: 1fr; }
   .settings-card { padding: 19px 16px; }
   .reminder-row { grid-template-columns: 1fr; gap: 6px; }
   .reminder-controls { justify-content: space-between; }
