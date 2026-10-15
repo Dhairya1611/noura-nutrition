@@ -47,6 +47,15 @@ test("parses natural meal text and quantities", () => {
   assert.equal(result.matched[0].kcal, 156);
 });
 
+test("understands conversational meal phrasing and number words", () => {
+  const result = parseMealText("I had two aloo parathas and a bowl of curd for lunch");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["aloo-paratha", "yogurt"]);
+  assert.equal(result.matched[0].servings, 2);
+  assert.equal(result.matched[1].servings, 1);
+  assert.deepEqual(parseMealText("Please add dragon bowl for dinner").unknown, ["dragon bowl"]);
+});
+
 test("recognises pear, cucumber fractions, and common muesli spellings", () => {
   const result = parseMealText("3 bananas, moong dal khichdi, greek yogurt, pear, 1/2 cucumber, museli");
   assert.equal(result.matched.length, 6);
