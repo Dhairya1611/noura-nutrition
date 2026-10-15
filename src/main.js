@@ -1,7 +1,7 @@
 import "./styles.css";
 import { BODY_TYPES, DEFAULT_REMINDERS, FOOD_LIBRARY, GOALS } from "./data.js";
 import {
-  calculateDayScore, calculateTargets, chartSeries, dayKey, findFood, getStreak,
+  calculateDayScore, calculateTargets, chartSeries, dayKey, findFood, formatFoodPortion, getStreak,
   adjustReminderTime, formatReminderTime, macroStatus, mealTypeForTime, normaliseLogDate, parseMealText,
   recommendNext, reminderTimeParts, round1, scaleFood, setReminderPeriod, totalsForDate
 } from "./logic.js";
@@ -277,7 +277,7 @@ function renderPendingFoods() {
   const unknown = indexed.filter(({ item }) => item.unknown);
   return `<div class="pending-panel">
     <div class="card-title-row"><div><span class="eyebrow">Meal estimate</span><h3>${known.length} ${known.length === 1 ? "item" : "items"} ready</h3></div><strong>${known.reduce((sum, { item }) => sum + item.kcal, 0)} kcal</strong></div>
-    ${known.map(({ item: food, index }) => `<div class="pending-row"><span>${food.emoji}</span><div><strong>${escapeHtml(food.name)}</strong><small>${food.servings || 1} × ${escapeHtml(food.serving)}</small>${food.source ? `<small>${escapeHtml(food.source)}</small>` : ""}</div><span>${food.kcal} kcal</span><button data-remove-pending="${index}" aria-label="Remove ${escapeHtml(food.name)}">×</button></div>`).join("")}
+    ${known.map(({ item: food, index }) => `<div class="pending-row"><span>${food.emoji}</span><div><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(formatFoodPortion(food))}</small>${food.source ? `<small>${escapeHtml(food.source)}</small>` : ""}</div><span>${food.kcal} kcal</span><button data-remove-pending="${index}" aria-label="Remove ${escapeHtml(food.name)}">×</button></div>`).join("")}
     ${unknown.map(({ item, index }) => renderUnmatchedFood(item, index)).join("")}
     ${known.length && !unknown.length ? `<button class="big-submit" data-action="log-pending">Add meal to today ${icon("check", 18)}</button>` : ""}
   </div>`;
