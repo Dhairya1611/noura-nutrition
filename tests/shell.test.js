@@ -32,6 +32,9 @@ test("manual meal logging visibly repeats and confirms what Noura heard", async 
   assert.match(main, /Nothing is logged automatically/);
   assert.match(main, /data-adjust-pending/);
   assert.match(main, /I won’t guess and save the wrong food/);
+  assert.match(main, /Compare the photo, description, and serving/);
+  assert.match(main, /class="suggestion-preview"/);
+  assert.match(main, /data-suggestion-image/);
 });
 
 test("manual logging invites a complete meal or day in one message", async () => {
