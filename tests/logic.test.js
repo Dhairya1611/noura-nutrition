@@ -40,6 +40,19 @@ test("treats an almond as one almond rather than a twenty-almond serving", () =>
   assert.equal(formatFoodPortion(twenty), "20 almonds");
 });
 
+test("recognises ordinary walnuts directly with natural counts", () => {
+  const one = parseMealText("1 walnut").matched[0];
+  const seven = parseMealText("7 walnuts").matched[0];
+  assert.equal(one.id, "walnuts");
+  assert.equal(one.serving, "1 walnut");
+  assert.equal(one.kcal, 26);
+  assert.equal(formatFoodPortion(one), "1 walnut");
+  assert.equal(seven.servings, 7);
+  assert.equal(seven.kcal, 182);
+  assert.equal(formatFoodPortion(seven), "7 walnuts");
+  assert.equal(findFood("akhrot")?.id, "walnuts");
+});
+
 test("parses natural meal text and quantities", () => {
   const result = parseMealText("2 eggs, 1 banana and dal");
   assert.equal(result.matched.length, 3);
