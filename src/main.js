@@ -346,7 +346,7 @@ function renderUnmatchedFood(item, index) {
   const suggestions = item.suggestions || [];
   return `<section class="unmatched-food">
     <div class="unmatched-title"><div><span class="eyebrow">Help me understand</span><h4>What did you mean by “${escapeHtml(item.name)}”?</h4></div><button type="button" data-remove-pending="${index}" aria-label="Remove ${escapeHtml(item.name)}">×</button></div>
-    ${item.searching ? `<p class="unknown-note listening">I heard it. I’m searching USDA FoodData Central and Open Food Facts for the closest match…</p>` : suggestions.length ? `<p class="lookup-help">Tap the option that sounds right. If none do, add your own details below.</p><div class="database-suggestions">${suggestions.map((food, suggestionIndex) => `<button type="button" data-use-database-food="${index}:${suggestionIndex}"><span>🍽️</span><div><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(food.brand)} · ${escapeHtml(food.serving)} · ${food.kcal} kcal</small></div><span class="suggestion-action">Use this</span></button>`).join("")}</div>` : `<p class="unknown-note">${item.lookupError ? escapeHtml(item.lookupError) : "I couldn’t find a reliable match."} Add the label or your best estimate below so I don’t record the wrong food.</p>`}
+    ${item.searching ? `<p class="unknown-note listening">I heard it. I’m searching USDA FoodData Central and Open Food Facts for the closest match…</p>` : suggestions.length ? `<p class="lookup-help">Compare the photo, description, and serving. On a computer, hover or focus a photo to enlarge it.</p><div class="database-suggestions">${suggestions.map((food, suggestionIndex) => renderDatabaseSuggestion(food, index, suggestionIndex)).join("")}</div>` : `<p class="unknown-note">${item.lookupError ? escapeHtml(item.lookupError) : "I couldn’t find a reliable match."} Add the label or your best estimate below so I don’t record the wrong food.</p>`}
     <details class="custom-food-entry" ${suggestions.length ? "" : "open"}>
       <summary>Enter nutrition manually</summary>
       <form data-custom-food="${index}">
@@ -363,6 +363,15 @@ function renderUnmatchedFood(item, index) {
       </form>
     </details>
   </section>`;
+}
+
+function renderDatabaseSuggestion(food, itemIndex, suggestionIndex) {
+  const image = food.image ? escapeHtml(food.image) : "";
+  const descriptionId = `food-suggestion-${itemIndex}-${suggestionIndex}`;
+  const description = food.description || `${food.name} from ${food.brand}. Nutrition is listed for ${food.serving}.`;
+  const media = `<span class="suggestion-media ${image ? "has-image" : "no-image"}"><span class="suggestion-fallback" aria-hidden="true">${food.emoji || "🍽️"}</span>${image ? `<img src="${image}" alt="${escapeHtml(food.name)}" loading="lazy" referrerpolicy="no-referrer" data-suggestion-image>` : ""}</span>`;
+  const preview = image ? `<span class="suggestion-preview" aria-hidden="true"><img src="${image}" alt="" loading="lazy" referrerpolicy="no-referrer"><span><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(description)}</small></span></span>` : "";
+  return `<button type="button" class="database-suggestion" data-use-database-food="${itemIndex}:${suggestionIndex}" aria-describedby="${descriptionId}">${media}<span class="suggestion-copy"><strong>${escapeHtml(food.name)}</strong><small>${escapeHtml(food.brand)} · ${escapeHtml(food.serving)} · ${food.kcal} kcal</small><span class="suggestion-description" id="${descriptionId}">${escapeHtml(description)}</span></span><span class="suggestion-action">Use this</span>${preview}</button>`;
 }
 
 function renderInsights() {
@@ -631,6 +640,10 @@ function wireAfterRender() {
     const [itemIndex, suggestionIndex] = button.dataset.useDatabaseFood.split(":").map(Number);
     chooseDatabaseFood(itemIndex, suggestionIndex);
   }));
+  document.querySelectorAll("[data-suggestion-image]").forEach(image => image.addEventListener("error", () => {
+    image.hidden = true;
+    image.closest(".suggestion-media")?.classList.add("image-missing");
+  }, { once: true }));
   document.querySelectorAll("[data-custom-food]").forEach(form => form.addEventListener("submit", handleCustomFood));
   document.querySelectorAll("[data-adjust-pending]").forEach(button => button.addEventListener("click", () => {
     const [itemIndex, direction] = button.dataset.adjustPending.split(":").map(Number);
