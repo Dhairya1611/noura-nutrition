@@ -266,9 +266,9 @@ function renderScanMode() {
       <div class="manual-heading"><span class="manual-spark">✦</span><div><h2>Tell me in your own words</h2><p>I’ll repeat what I understood before anything is added.</p></div></div>
       <form id="manual-form">
         <label for="meal-text">Write it the way you would say it</label>
-        <textarea id="meal-text" name="meal" rows="4" placeholder="For example: “I had two aloo parathas and a bowl of curd for lunch”" required>${escapeHtml(state.mealDraft)}</textarea>
-        <p class="input-help">Portion, cooking style, sauces, and sides help me give a better estimate—but everyday language is fine.</p>
-        <div class="examples"><span>Try:</span><button type="button" data-example="2 eggs and a banana">2 eggs + banana</button><button type="button" data-example="1 roti, dal and salad">roti + dal + salad</button></div>
+        <textarea id="meal-text" name="meal" rows="4" placeholder="For example: “2 roti petha sabzi curd”" required>${escapeHtml(state.mealDraft)}</textarea>
+        <p class="input-help">Write one food, a whole meal, or your whole day in one message. Commas are optional; breakfast, lunch, dinner, and quantities are understood.</p>
+        <div class="examples"><span>Try:</span><button type="button" data-example="2 eggs banana toast">2 eggs banana toast</button><button type="button" data-example="Breakfast 2 eggs; lunch 2 roti petha sabzi curd; dinner dal rice">my whole day</button></div>
         <button class="big-submit">Tell me what you heard ${icon("spark", 19)}</button>
       </form>
       ${renderMealConversation()}
@@ -336,7 +336,7 @@ function renderPendingFoods() {
   const unknown = indexed.filter(({ item }) => item.unknown);
   return `<div class="pending-panel">
     <div class="card-title-row"><div><span class="eyebrow">Meal estimate</span><h3>${known.length} ${known.length === 1 ? "item" : "items"} ready</h3></div><strong>${known.reduce((sum, { item }) => sum + item.kcal, 0)} kcal</strong></div>
-    ${known.map(({ item: food, index }) => `<div class="pending-row"><span>${food.emoji}</span><div class="pending-info"><strong>${escapeHtml(food.name)}</strong><div class="portion-editor" aria-label="Adjust ${escapeHtml(food.name)} servings"><button type="button" data-adjust-pending="${index}:-1" aria-label="Decrease ${escapeHtml(food.name)} portion" ${Number(food.servings || 1) <= 1 ? "disabled" : ""}>−</button><span>${escapeHtml(formatFoodPortion(food))}</span><button type="button" data-adjust-pending="${index}:1" aria-label="Increase ${escapeHtml(food.name)} portion">+</button></div>${food.source ? `<small>${escapeHtml(food.source)}</small>` : ""}</div><span class="pending-kcal">${food.kcal} kcal</span><button type="button" class="remove-pending" data-remove-pending="${index}" aria-label="Remove ${escapeHtml(food.name)}">×</button></div>`).join("")}
+    ${known.map(({ item: food, index }) => `<div class="pending-row"><span>${food.emoji}</span><div class="pending-info"><strong>${escapeHtml(food.name)}</strong><div class="portion-editor" aria-label="Adjust ${escapeHtml(food.name)} servings"><button type="button" data-adjust-pending="${index}:-1" aria-label="Decrease ${escapeHtml(food.name)} portion" ${Number(food.servings || 1) <= 1 ? "disabled" : ""}>−</button><span>${escapeHtml(formatFoodPortion(food))}</span><button type="button" data-adjust-pending="${index}:1" aria-label="Increase ${escapeHtml(food.name)} portion">+</button></div>${food.mealHint ? `<small>${escapeHtml(food.mealHint)} · recognised from your message</small>` : food.source ? `<small>${escapeHtml(food.source)}</small>` : ""}</div><span class="pending-kcal">${food.kcal} kcal</span><button type="button" class="remove-pending" data-remove-pending="${index}" aria-label="Remove ${escapeHtml(food.name)}">×</button></div>`).join("")}
     ${unknown.map(({ item, index }) => renderUnmatchedFood(item, index)).join("")}
     ${known.length && !unknown.length ? `<button class="big-submit" data-action="log-pending">Add meal to today ${icon("check", 18)}</button>` : ""}
   </div>`;
@@ -1201,7 +1201,7 @@ function addFoodLog(food) {
     id: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
     foodId: food.id, name: food.name, emoji: food.emoji || "🍽️", serving: food.serving,
     kcal: food.kcal, protein: food.protein, carbs: food.carbs, fat: food.fat, fiber: food.fiber,
-    meal: mealTypeForTime(now), at: now.toISOString(), source: food.source || "catalogue"
+    meal: food.mealHint || mealTypeForTime(now), at: now.toISOString(), source: food.source || "catalogue"
   });
   persist();
   if (state.route !== "scan") showToast(`${food.name} added.`);
