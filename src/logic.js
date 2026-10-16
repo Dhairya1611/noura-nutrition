@@ -418,6 +418,7 @@ export function recommendNext(totals, targets, profile = {}, limit = 8) {
   const vegan = profile.diet === "vegan";
   const candidates = FOOD_LIBRARY.filter(food => {
     if (vegan && !food.tags.includes("vegan")) return false;
+    if (vegetarian && food.tags.includes("contains-egg")) return false;
     if (vegetarian && !food.tags.some(tag => tag === "vegetarian" || tag === "vegan")) return false;
     return food.kcal <= remaining.kcal + 120 && !food.tags.includes("dessert") && !food.tags.includes("drink");
   });

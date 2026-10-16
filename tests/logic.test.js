@@ -279,6 +279,18 @@ test("coach respects vegan preference", () => {
   assert.ok(recs.every(food => food.tags.includes("vegan")));
 });
 
+test("coach excludes eggs from vegetarian suggestions", () => {
+  const recs = recommendNext(
+    { kcal: 2000, protein: 120, carbs: 250, fat: 65, fiber: 30 },
+    { calories: 2000, protein: 120, carbs: 250, fat: 65, fiber: 30 },
+    { diet: "vegetarian" },
+    12
+  );
+  assert.equal(recs.length, 12);
+  assert.ok(recs.every(food => !food.tags.includes("contains-egg")));
+  assert.ok(recs.every(food => !["egg", "fried-egg", "omelette", "egg-curry", "egg-paratha", "shakshuka"].includes(food.id)));
+});
+
 test("coach can limit suggestions for compact surfaces", () => {
   const recs = recommendNext({ kcal: 500, protein: 20, carbs: 50, fat: 15, fiber: 5 }, { calories: 2000, protein: 120, carbs: 250, fat: 65, fiber: 30 }, { diet: "omnivore" }, 1);
   assert.equal(recs.length, 1);

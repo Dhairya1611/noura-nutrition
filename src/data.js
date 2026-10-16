@@ -1,7 +1,7 @@
 import { EXTENDED_FOOD_LIBRARY } from "./extended-foods.js";
 
 export const FOOD_LIBRARY = [
-  { id: "egg", name: "Boiled egg", emoji: "🥚", serving: "1 large egg", grams: 50, kcal: 78, protein: 6.3, carbs: 0.6, fat: 5.3, fiber: 0, aliases: ["egg", "eggs", "boiled egg", "boiled eggs"], tags: ["protein", "breakfast", "snack", "vegetarian"] },
+  { id: "egg", name: "Boiled egg", emoji: "🥚", serving: "1 large egg", grams: 50, kcal: 78, protein: 6.3, carbs: 0.6, fat: 5.3, fiber: 0, aliases: ["egg", "eggs", "boiled egg", "boiled eggs"], tags: ["protein", "breakfast", "snack", "contains-egg"] },
   { id: "oats", name: "Oats with milk", emoji: "🥣", serving: "1 bowl", grams: 250, kcal: 280, protein: 12, carbs: 46, fat: 6, fiber: 6, aliases: ["oats", "oatmeal", "porridge"], tags: ["fiber", "breakfast", "vegetarian"] },
   { id: "muesli", name: "Muesli", emoji: "🥣", serving: "1 bowl (60 g)", grams: 60, kcal: 220, protein: 6.6, carbs: 40, fat: 3.6, fiber: 5.4, aliases: ["muesli", "museli", "muesli cereal", "museli cereal", "müsli"], tags: ["fiber", "breakfast", "vegetarian"] },
   { id: "banana", name: "Banana", emoji: "🍌", serving: "1 medium", grams: 118, kcal: 105, protein: 1.3, carbs: 27, fat: 0.4, fiber: 3.1, aliases: ["banana", "bananas"], tags: ["fruit", "carbs", "snack", "vegan"] },
