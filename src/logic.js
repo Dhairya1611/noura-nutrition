@@ -154,7 +154,9 @@ export function findVisualFood(label) {
   return null;
 }
 
-function normaliseFoodText(value) {
+let foodWordVocabulary;
+
+function baseNormaliseFoodText(value) {
   return String(value || "")
     .toLowerCase()
     .trim()
@@ -165,6 +167,65 @@ function normaliseFoodText(value) {
     .replace(/\b(?:ka|ki|ke|wala|waala|wali|with|of)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normaliseFoodText(value) {
+  return correctLikelyFoodTypos(baseNormaliseFoodText(value));
+}
+
+function correctLikelyFoodTypos(value) {
+  if (!value) return "";
+  const vocabulary = getFoodWordVocabulary();
+  return value.split(" ").map(token => {
+    if (token.length < 5 || vocabulary.has(token) || !/^\p{L}+$/u.test(token)) return token;
+    const matches = [];
+    for (const known of vocabulary) {
+      if (known[0] !== token[0] || known.at(-1) !== token.at(-1) || Math.abs(known.length - token.length) > 1) continue;
+      if (isSingleEditAway(token, known)) matches.push(known);
+      if (matches.length > 1) return token;
+    }
+    return matches[0] || token;
+  }).join(" ");
+}
+
+function getFoodWordVocabulary() {
+  if (foodWordVocabulary) return foodWordVocabulary;
+  foodWordVocabulary = new Set();
+  for (const food of FOOD_LIBRARY) {
+    for (const label of [food.name, ...food.aliases]) {
+      for (const token of baseNormaliseFoodText(label).split(" ")) {
+        if (token.length >= 4 && /^\p{L}+$/u.test(token)) foodWordVocabulary.add(token);
+      }
+    }
+  }
+  return foodWordVocabulary;
+}
+
+function isSingleEditAway(left, right) {
+  if (left === right || Math.abs(left.length - right.length) > 1) return false;
+  if (left.length === right.length) {
+    let differences = 0;
+    for (let index = 0; index < left.length; index += 1) {
+      if (left[index] !== right[index] && ++differences > 1) return false;
+    }
+    return differences === 1;
+  }
+  const shorter = left.length < right.length ? left : right;
+  const longer = left.length < right.length ? right : left;
+  let shortIndex = 0;
+  let longIndex = 0;
+  let skipped = false;
+  while (shortIndex < shorter.length && longIndex < longer.length) {
+    if (shorter[shortIndex] === longer[longIndex]) {
+      shortIndex += 1;
+      longIndex += 1;
+    } else {
+      if (skipped) return false;
+      skipped = true;
+      longIndex += 1;
+    }
+  }
+  return true;
 }
 
 export function parseMealText(text) {
