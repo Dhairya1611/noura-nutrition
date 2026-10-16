@@ -201,6 +201,19 @@ test("recognises common regional and fasting thalis plus samak rice and fafda", 
   assert.equal(parseMealText("1 plate Gujarati fafda").matched[0]?.id, "fafda");
 });
 
+test("recognises chole kulche as one combined dish", () => {
+  const result = parseMealText("chole kulche");
+  assert.deepEqual(result.unknown, []);
+  assert.equal(result.matched.length, 1);
+  assert.equal(result.matched[0].id, "chole-kulche");
+  assert.equal(result.matched[0].name, "Chole kulche");
+  assert.equal(result.matched[0].serving, "1 plate (2 kulche + chole)");
+  assert.equal(result.matched[0].kcal, 820);
+  assert.deepEqual(["chole kulcha", "chana kulche", "chhole kulche"].map(name => findFood(name)?.id), ["chole-kulche", "chole-kulche", "chole-kulche"]);
+  assert.equal(findFood("chole")?.id, "chole");
+  assert.equal(findFood("kulcha")?.id, "kulcha");
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];

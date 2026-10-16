@@ -65,6 +65,7 @@ const rows = [
   ["aloo-fry", "Aloo fry", "🥔", "1 cup", 200, 260, 5, 38, 10, 6, ["aloo fry", "alu fry", "fried aloo", "potato fry"], ["fiber", "lunch", "dinner", "vegan", "indian"]],
   ["mirch-achaar", "Mirch ka achaar", "🌶️", "1 tsp", 5, 15, 0.1, 0.7, 1.3, 0.2, ["mirch achar", "mirch achaar", "mirch ka achar", "mirch ka achaar", "mirchi achar", "mirchi achaar", "hari mirch achar", "hari mirch ka achar", "green chilli pickle", "green chili pickle", "chilli pickle", "chili pickle"], ["condiment", "lunch", "dinner", "vegan", "indian"]],
   ["naan", "Naan", "🫓", "1 naan", 90, 262, 8, 45, 5, 2, ["naan", "plain naan"], ["carbs", "lunch", "dinner", "vegetarian", "indian"]],
+  ["chole-kulche", "Chole kulche", "🫘", "1 plate (2 kulche + chole)", 380, 820, 28, 134, 21, 16, ["chole kulche", "chole kulcha", "chana kulche", "chana kulcha", "chhole kulche", "chhole kulcha", "choley kulche", "choley kulcha"], ["protein", "fiber", "lunch", "dinner", "vegetarian", "indian", "punjabi"]],
   ["kulcha", "Kulcha", "🫓", "1 kulcha", 100, 280, 8, 48, 7, 3, ["kulcha", "plain kulcha"], ["carbs", "lunch", "dinner", "vegetarian", "indian"]],
   ["puri", "Puri", "🫓", "2 puri", 70, 210, 5, 30, 9, 3, ["puri", "poori", "puris", "pooris"], ["carbs", "breakfast", "lunch", "vegetarian", "indian"]],
   ["bhatura", "Bhatura", "🫓", "1 bhatura", 120, 330, 8, 48, 12, 3, ["bhatura", "bhature"], ["carbs", "lunch", "vegetarian", "indian"]],
