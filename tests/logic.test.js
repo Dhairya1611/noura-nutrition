@@ -53,7 +53,34 @@ test("understands conversational meal phrasing and number words", () => {
   assert.deepEqual(result.matched.map(food => food.id), ["aloo-paratha", "yogurt"]);
   assert.equal(result.matched[0].servings, 2);
   assert.equal(result.matched[1].servings, 1);
+  assert.equal(result.matched[1].name, "Plain curd (dahi)");
+  assert.ok(result.matched.every(food => food.mealHint === "Lunch"));
   assert.deepEqual(parseMealText("Please add dragon bowl for dinner").unknown, ["dragon bowl"]);
+});
+
+test("extracts several foods written together without commas or conjunctions", () => {
+  const result = parseMealText("2 roti petha sabzi curd");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["roti", "petha-sabzi", "yogurt"]);
+  assert.deepEqual(result.matched.map(food => food.kcal), [240, 135, 90]);
+  assert.equal(result.matched[0].servings, 2);
+  assert.equal(result.matched[1].servings, 1);
+  assert.equal(result.matched[2].name, "Plain curd (dahi)");
+});
+
+test("accepts a whole day in one message and keeps meal labels", () => {
+  const result = parseMealText("Breakfast 2 eggs banana; lunch 2 roti petha sabzi curd; dinner 1 bowl dal rice");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["egg", "banana", "roti", "petha-sabzi", "yogurt", "dal", "rice"]);
+  assert.deepEqual(result.matched.map(food => food.mealHint), ["Breakfast", "Breakfast", "Lunch", "Lunch", "Lunch", "Dinner", "Dinner"]);
+  assert.equal(result.matched.find(food => food.id === "egg")?.servings, 2);
+  assert.equal(result.matched.find(food => food.id === "roti")?.servings, 2);
+});
+
+test("keeps plain curd distinct from Greek yogurt", () => {
+  assert.equal(findFood("curd")?.id, "yogurt");
+  assert.equal(findFood("curd")?.name, "Plain curd (dahi)");
+  assert.equal(findFood("greek yogurt")?.id, "greek-yogurt");
 });
 
 test("maps visual labels conservatively instead of guessing a broad food", () => {
