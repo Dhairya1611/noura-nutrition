@@ -18,6 +18,7 @@ test("the document remains useful while the application bundle starts", async ()
   assert.match(document, /Loading your saved nutrition plan/);
   assert.match(document, /%BASE_URL%manifest\.webmanifest/);
   assert.match(document, /%BASE_URL%icon\.svg/);
+  assert.match(document, /%BASE_URL%apple-touch-icon\.png/);
 });
 
 test("service worker updates bypass the browser HTTP cache", async () => {
@@ -62,6 +63,24 @@ test("service worker displays server push messages when the page is closed", asy
   assert.match(worker, /addEventListener\("push"/);
   assert.match(worker, /registration\.showNotification/);
   assert.match(worker, /notification\.data\?\.url/);
+  assert.match(worker, /icon: new URL\("notification-icon\.png"/);
+  assert.match(worker, /badge: new URL\("notification-badge\.png"/);
+  assert.doesNotMatch(worker, /icon: new URL\("icon\.svg"/);
+});
+
+test("the install manifest provides PNG and maskable app icons", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
+  assert.ok(manifest.icons.some(icon => icon.src === "icon-192.png" && icon.sizes === "192x192" && icon.type === "image/png"));
+  assert.ok(manifest.icons.some(icon => icon.src === "icon-512.png" && icon.sizes === "512x512" && icon.type === "image/png"));
+  assert.ok(manifest.icons.some(icon => icon.src === "icon-maskable-512.png" && icon.purpose === "maskable"));
+});
+
+test("notification and install PNG assets are present", async () => {
+  const assets = ["icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png", "notification-icon.png", "notification-badge.png"];
+  for (const asset of assets) {
+    const bytes = await readFile(new URL(`../public/${asset}`, import.meta.url));
+    assert.deepEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10], `${asset} should be a PNG`);
+  }
 });
 
 test("meal reminders use the custom accessible time editor", async () => {

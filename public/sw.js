@@ -1,6 +1,15 @@
-const CACHE = "noura-shell-v12";
+const CACHE = "noura-shell-v13";
 const ROOT = new URL("./", self.location.href).href;
-const SHELL_ASSETS = [new URL("manifest.webmanifest", ROOT).href, new URL("icon.svg", ROOT).href];
+const SHELL_ASSETS = [
+  "manifest.webmanifest",
+  "icon.svg",
+  "icon-192.png",
+  "icon-512.png",
+  "icon-maskable-512.png",
+  "apple-touch-icon.png",
+  "notification-icon.png",
+  "notification-badge.png"
+].map(asset => new URL(asset, ROOT).href);
 
 self.addEventListener("install", event => {
   event.waitUntil((async () => {
@@ -48,8 +57,8 @@ self.addEventListener("push", event => {
   }
   event.waitUntil(self.registration.showNotification(payload.title || "Noura meal reminder", {
     body: payload.body || "Take a quick photo or tell Noura what’s on your plate.",
-    icon: new URL("icon.svg", ROOT).href,
-    badge: new URL("icon.svg", ROOT).href,
+    icon: new URL("notification-icon.png", ROOT).href,
+    badge: new URL("notification-badge.png", ROOT).href,
     tag: payload.tag || "noura-meal-reminder",
     renotify: true,
     data: { url: payload.url || ROOT }
