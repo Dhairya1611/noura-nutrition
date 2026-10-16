@@ -1,7 +1,7 @@
 import "./styles.css";
 import { BODY_TYPES, DEFAULT_REMINDERS, FOOD_LIBRARY, GOALS } from "./data.js";
 import {
-  calculateDayScore, calculateTargets, chartSeries, dayKey, findFood, findVisualFood, formatFoodPortion, getStreak,
+  calculateDayScore, calculateTargets, chartGeometry, chartSeries, dayKey, findFood, findVisualFood, formatFoodPortion, getStreak,
   adjustReminderTime, formatReminderTime, macroStatus, mealTypeForTime, normaliseLogDate, parseMealText,
   recommendNext, reminderTimeParts, round1, scaleFood, setReminderPeriod, totalsForDate
 } from "./logic.js";
@@ -380,7 +380,7 @@ function renderInsights() {
   const activeValues = series.filter(point => point.value > 0);
   const selectedPoint = series.find(point => point.key === state.insightSelectionKey) || activeValues.at(-1) || series.at(-1);
   const average = activeValues.length ? Math.round(activeValues.reduce((sum, point) => sum + point.value, 0) / activeValues.length) : 0;
-  const max = Math.max(target.calories * 1.25, ...series.map(point => point.value), 1);
+  const geometry = chartGeometry(series.map(point => point.value), target.calories);
   const streak = getStreak(state.logs);
   const onTarget = activeValues.filter(point => point.value >= target.calories * 0.85 && point.value <= target.calories * 1.1).length;
   const historyMetrics = selectedPoint ? [
@@ -399,12 +399,12 @@ function renderInsights() {
     </div>
     <article class="card chart-card">
       <div class="card-title-row"><div><span class="eyebrow">Calories</span><h2>${state.period === "week" ? "Last 7 days" : state.period === "month" ? "Last 30 days" : "12-month average"}</h2></div><div class="chart-legend"><i></i>Your intake <span></span>Target</div></div>
-      <div class="bar-chart" style="--target-pos:${Math.min(94, (target.calories / max) * 100)}%">
+      <div class="bar-chart" style="--target-pos:calc(${geometry.targetPercent}% + ${geometry.targetOffset}px)">
         <div class="target-line"><span>${target.calories}</span></div>
         ${series.map(point => {
           const selected = selectedPoint?.key === point.key;
           const tooltip = `${point.fullLabel}: ${point.value.toLocaleString()} kcal, ${formatNutrient(point.totals.protein)}g protein, ${formatNutrient(point.totals.fat)}g fat`;
-          return `<button type="button" class="bar-column ${selected ? "selected" : ""}" data-insight-key="${escapeHtml(point.key)}" aria-pressed="${selected}" aria-label="${escapeHtml(tooltip)}. Select for full details." title="${escapeHtml(tooltip)}"><span class="bar-tooltip" aria-hidden="true"><strong>${escapeHtml(point.fullLabel)}</strong><span>${point.value.toLocaleString()} kcal</span><small>${formatNutrient(point.totals.protein)}g protein · ${formatNutrient(point.totals.fat)}g fat</small></span><span class="bar-track"><i style="height:${Math.max(point.value ? 5 : 0, (point.value / max) * 100)}%"></i></span><span class="bar-label">${point.label}</span></button>`;
+          return `<button type="button" class="bar-column ${selected ? "selected" : ""}" data-insight-key="${escapeHtml(point.key)}" aria-pressed="${selected}" aria-label="${escapeHtml(tooltip)}. Select for full details." title="${escapeHtml(tooltip)}"><span class="bar-tooltip" aria-hidden="true"><strong>${escapeHtml(point.fullLabel)}</strong><span>${point.value.toLocaleString()} kcal</span><small>${formatNutrient(point.totals.protein)}g protein · ${formatNutrient(point.totals.fat)}g fat</small></span><span class="bar-track"><i style="height:${geometry.heightPercent(point.value)}%"></i></span><span class="bar-label">${point.label}</span></button>`;
         }).join("")}
       </div>
       ${!activeValues.length ? `<div class="chart-empty">Your chart will come alive as you log meals.</div>` : ""}

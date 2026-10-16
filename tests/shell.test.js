@@ -26,6 +26,15 @@ test("service worker updates bypass the browser HTTP cache", async () => {
   assert.match(main, /updateViaCache: "none"/);
 });
 
+test("calorie chart target line uses the same plot area as its bars", async () => {
+  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
+  assert.match(main, /chartGeometry\(series\.map\(point => point\.value\), target\.calories\)/);
+  assert.match(main, /--target-pos:calc\(\$\{geometry\.targetPercent\}% \+ \$\{geometry\.targetOffset\}px\)/);
+  assert.match(styles, /bottom: var\(--target-pos\)/);
+  assert.doesNotMatch(styles, /bottom: calc\(var\(--target-pos\) \+ 25px\)/);
+});
+
 test("manual meal logging visibly repeats and confirms what Noura heard", async () => {
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /Noura heard you/);

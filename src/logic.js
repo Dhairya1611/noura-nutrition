@@ -481,6 +481,22 @@ export function chartSeries(logs, period, targets, now = new Date()) {
   });
 }
 
+export function chartGeometry(values, target, labelSpace = 25) {
+  const safeValues = values.map(value => Math.max(0, Number(value) || 0));
+  const safeTarget = Math.max(0, Number(target) || 0);
+  const max = Math.max(safeTarget * 1.25, ...safeValues, 1);
+  const targetRatio = Math.min(0.94, safeTarget / max);
+  return {
+    max,
+    targetPercent: round1(targetRatio * 100),
+    targetOffset: round1((1 - targetRatio) * labelSpace),
+    heightPercent(value) {
+      const safeValue = Math.max(0, Number(value) || 0);
+      return round1(Math.max(safeValue ? 5 : 0, (safeValue / max) * 100));
+    }
+  };
+}
+
 function nutritionSummary(logs, divisor = 1) {
   const totals = logs.reduce((summary, log) => {
     for (const field of ["kcal", "protein", "carbs", "fat", "fiber"]) summary[field] += Number(log[field]) || 0;

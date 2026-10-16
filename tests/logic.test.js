@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  adjustReminderTime, calculateDayScore, calculateTargets, chartSeries, findFood, findVisualFood, formatFoodPortion, formatReminderTime,
+  adjustReminderTime, calculateDayScore, calculateTargets, chartGeometry, chartSeries, findFood, findVisualFood, formatFoodPortion, formatReminderTime,
   macroStatus, parseMealText, recommendNext, reminderTimeParts, setReminderPeriod, totalsForDate
 } from "../src/logic.js";
 import { FOOD_LIBRARY } from "../src/data.js";
@@ -300,6 +300,15 @@ test("chart history includes complete nutrition totals for each day", () => {
   assert.deepEqual(previousDay.totals, { kcal: 1030, protein: 55, carbs: 122, fat: 33, fiber: 17 });
   assert.equal(previousDay.logCount, 2);
   assert.match(previousDay.fullLabel, /Thursday, October 8/);
+});
+
+test("positions above-target calorie bars above the target line", () => {
+  const geometry = chartGeometry([2798], 2630);
+  assert.equal(geometry.max, 3287.5);
+  assert.equal(geometry.targetPercent, 80);
+  assert.equal(geometry.targetOffset, 5);
+  assert.equal(geometry.heightPercent(2798), 85.1);
+  assert.ok(geometry.heightPercent(2798) > geometry.targetPercent);
 });
 
 test("formats and adjusts reminder times without a native time picker", () => {
