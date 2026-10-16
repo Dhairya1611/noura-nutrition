@@ -34,6 +34,14 @@ test("manual meal logging visibly repeats and confirms what Noura heard", async 
   assert.match(main, /I won’t guess and save the wrong food/);
 });
 
+test("manual logging invites a complete meal or day in one message", async () => {
+  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.match(main, /whole day in one message/);
+  assert.match(main, /Commas are optional/);
+  assert.match(main, /2 roti petha sabzi curd/);
+  assert.match(main, /food\.mealHint \|\| mealTypeForTime/);
+});
+
 test("photo recognition uses a fast first scan with an optional deeper scan", async () => {
   const ai = await readFile(new URL("../src/food-ai.js", import.meta.url), "utf8");
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
