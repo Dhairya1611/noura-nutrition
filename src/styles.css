@@ -253,14 +253,22 @@ p { color: var(--muted); line-height: 1.55; }
 .unmatched-title > button { border: 0; background: transparent; color: #9caaa4; font-size: 1.15rem; cursor: pointer; }
 .lookup-help { margin: 12px 0 5px; font-size: .7rem; color: var(--muted); }
 .database-suggestions { display: grid; gap: 6px; }
-.database-suggestions > button { width: 100%; display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 9px; border: 1px solid #e7e6dc; border-radius: 10px; background: white; text-align: left; cursor: pointer; }
-.database-suggestions > button:hover { border-color: var(--ink); }
-.database-suggestions img { width: 32px; height: 32px; object-fit: cover; border-radius: 7px; }
-.database-suggestions button > span { text-align: center; }
-.database-suggestions button > div { display: grid; min-width: 0; }
+.database-suggestion { position: relative; width: 100%; display: grid; grid-template-columns: 58px 1fr auto; gap: 11px; align-items: center; padding: 10px; border: 1px solid #e7e6dc; border-radius: 12px; background: white; text-align: left; cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.database-suggestion:hover, .database-suggestion:focus-visible { z-index: 4; border-color: #719382; box-shadow: 0 8px 22px rgba(19, 60, 48, .12); transform: translateY(-1px); outline: none; }
+.suggestion-media { position: relative; width: 58px; height: 58px; display: grid; place-items: center; overflow: hidden; border-radius: 10px; background: #f1f5eb; color: var(--ink); font-size: 1.3rem; }
+.suggestion-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: white; }
+.suggestion-media.image-missing img { display: none; }
+.suggestion-fallback { text-align: center; }
+.suggestion-copy { display: grid; min-width: 0; }
 .database-suggestions strong { font-size: .74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .database-suggestions small { color: var(--muted); font-size: .62rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggestion-description { margin-top: 4px; color: #546d63; font-size: .61rem; line-height: 1.38; }
 .database-suggestions .suggestion-action { padding: 6px 8px; border-radius: 8px; background: var(--lime-soft); color: var(--ink); font-size: .6rem; font-weight: 800; white-space: nowrap; }
+.suggestion-preview { position: absolute; left: 68px; bottom: calc(100% + 9px); z-index: 8; width: min(350px, calc(100vw - 120px)); display: grid; grid-template-columns: 112px 1fr; gap: 12px; align-items: center; padding: 10px; border: 1px solid #dfe6dc; border-radius: 14px; background: white; box-shadow: 0 18px 45px rgba(19, 60, 48, .22); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(7px); transition: opacity .16s ease, transform .16s ease, visibility .16s ease; }
+.suggestion-preview img { width: 112px; height: 96px; object-fit: contain; border-radius: 10px; background: #f6f7f2; }
+.suggestion-preview > span { display: grid; gap: 5px; }
+.suggestion-preview strong, .suggestion-preview small { white-space: normal; overflow: visible; text-overflow: clip; }
+.database-suggestion:hover .suggestion-preview, .database-suggestion:focus-visible .suggestion-preview { opacity: 1; visibility: visible; transform: translateY(0); }
 .custom-food-entry { margin-top: 11px; border-top: 1px solid #ece1cf; padding-top: 10px; }
 .custom-food-entry summary { color: var(--ink); font-size: .7rem; font-weight: 800; cursor: pointer; }
 .custom-food-entry form { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 10px; }
@@ -269,9 +277,17 @@ p { color: var(--muted); line-height: 1.55; }
 .nutrition-fields { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
 .custom-food-entry form > button { grid-column: 1 / -1; border: 0; border-radius: 9px; padding: 10px; background: var(--lime); color: var(--ink); font-weight: 800; cursor: pointer; }
 @media (max-width: 620px) {
+  .database-suggestion { grid-template-columns: 52px 1fr; }
+  .suggestion-media { width: 52px; height: 52px; }
+  .database-suggestions .suggestion-action { grid-column: 2; width: max-content; margin-top: 1px; }
+  .suggestion-preview { display: none; }
   .custom-food-entry form { grid-template-columns: 1fr; }
   .nutrition-fields { grid-template-columns: repeat(2, 1fr); }
   .nutrition-fields label:last-child { grid-column: 1 / -1; }
+}
+
+@media (hover: none) {
+  .suggestion-preview { display: none; }
 }
 
 .period-control { margin-bottom: 2px; }
