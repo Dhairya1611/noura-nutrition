@@ -27,9 +27,10 @@ export function mapUsdaFood(food, query = "food", index = 0) {
   const description = titleCase(String(food?.description || cleanFoodSearchQuery(query) || "Database food").toLowerCase());
   const brand = food?.brandName || food?.brandOwner || food?.dataType || "USDA FoodData Central";
   const serving = food?.householdServingFullText || (food?.servingSize ? `${round1(servingGrams)} ${food.servingSizeUnit || "g"}` : "100 g");
+  const name = description;
   return {
     id: `usda-${food?.fdcId || index}`,
-    name: description,
+    name,
     brand,
     emoji: "🍽️",
     serving,
@@ -41,6 +42,7 @@ export function mapUsdaFood(food, query = "food", index = 0) {
     fat: round1(nutrientValue(1004) * scale),
     fiber: round1(nutrientValue(1079) * scale),
     image: "",
+    description: `${name}${brand ? ` from ${brand}` : ""}. Nutrition is listed for ${serving}; choose it only if that serving matches what you ate.`,
     source: "USDA FoodData Central"
   };
 }
@@ -58,11 +60,15 @@ export function mapOpenFoodFactsProduct(product, query = "food", index = 0) {
   const kcal = nutrientValue("energy-kcal");
   if (!Number.isFinite(kcal) || kcal <= 0) return null;
   const rawName = product?.product_name || product?.generic_name || cleanFoodSearchQuery(query) || "Database food";
+  const name = titleCase(String(rawName).toLowerCase());
   const serving = product?.serving_size || (servingGrams ? `${round1(servingGrams)} g` : "100 g");
+  const brand = product?.brands || "Open Food Facts";
+  const genericName = titleCase(String(product?.generic_name || "").trim().toLowerCase());
+  const detail = genericName && genericName.toLowerCase() !== name.toLowerCase() ? `${genericName}. ` : "";
   return {
     id: `off-${product?.code || index}`,
-    name: titleCase(String(rawName).toLowerCase()),
-    brand: product?.brands || "Open Food Facts",
+    name,
+    brand,
     emoji: "🍽️",
     serving,
     grams: round1(servingGrams || 100),
@@ -72,7 +78,8 @@ export function mapOpenFoodFactsProduct(product, query = "food", index = 0) {
     carbs: round1(nutrientValue("carbohydrates")),
     fat: round1(nutrientValue("fat")),
     fiber: round1(nutrientValue("fiber")),
-    image: product?.image_front_small_url || "",
+    image: safeOpenFoodFactsImage(product?.image_front_small_url || product?.image_small_url || product?.image_front_url || product?.image_url),
+    description: `${detail}${name}${brand ? ` by ${brand}` : ""}. The label serving is ${serving}; compare the photo and serving before choosing.`,
     source: "Open Food Facts"
   };
 }
@@ -80,26 +87,17 @@ export function mapOpenFoodFactsProduct(product, query = "food", index = 0) {
 export async function searchFoodDatabase(query, fetchImpl = fetch) {
   const cleaned = cleanFoodSearchQuery(query);
   if (!cleaned) return [];
-  let usdaResults = [];
-  let usdaError = null;
-  try {
-    usdaResults = await searchUsda(cleaned, fetchImpl);
-  } catch (error) {
-    usdaError = error;
-  }
-  if (usdaResults.length >= 3) return usdaResults.slice(0, 3);
-
-  let openFoodFactsResults = [];
-  let openFoodFactsError = null;
-  try {
-    openFoodFactsResults = await searchOpenFoodFacts(cleaned, fetchImpl);
-  } catch (error) {
-    openFoodFactsError = error;
-  }
-
-  const combined = uniqueFoods([...usdaResults, ...openFoodFactsResults]).slice(0, 3);
+  const [usdaSearch, openFoodFactsSearch] = await Promise.allSettled([
+    searchUsda(cleaned, fetchImpl),
+    searchOpenFoodFacts(cleaned, fetchImpl)
+  ]);
+  const usdaResults = usdaSearch.status === "fulfilled" ? usdaSearch.value : [];
+  const openFoodFactsResults = openFoodFactsSearch.status === "fulfilled" ? openFoodFactsSearch.value : [];
+  const photographed = openFoodFactsResults.filter(food => food.image);
+  const remaining = [...usdaResults, ...openFoodFactsResults.filter(food => !food.image)];
+  const combined = uniqueFoods([...photographed, ...remaining]).slice(0, 3);
   if (combined.length) return combined;
-  if (usdaError && openFoodFactsError) {
+  if (usdaSearch.status === "rejected" && openFoodFactsSearch.status === "rejected") {
     throw new Error("The free global food databases are temporarily unavailable. Enter the nutrition manually below.");
   }
   return [];
@@ -125,7 +123,7 @@ async function searchOpenFoodFacts(cleaned, fetchImpl) {
   url.searchParams.set("q", cleaned);
   url.searchParams.set("page_size", "8");
   url.searchParams.set("langs", "en");
-  url.searchParams.set("fields", "code,product_name,generic_name,brands,serving_size,serving_quantity,nutriments,image_front_small_url");
+  url.searchParams.set("fields", "code,product_name,generic_name,brands,serving_size,serving_quantity,nutriments,image_front_small_url,image_small_url,image_front_url,image_url");
   try {
     const results = await fetchOpenFoodFacts(url, cleaned, fetchImpl);
     if (results.length) return results;
@@ -139,7 +137,7 @@ async function searchOpenFoodFacts(cleaned, fetchImpl) {
   legacyUrl.searchParams.set("action", "process");
   legacyUrl.searchParams.set("json", "1");
   legacyUrl.searchParams.set("page_size", "8");
-  legacyUrl.searchParams.set("fields", "code,product_name,generic_name,brands,serving_size,serving_quantity,nutriments,image_front_small_url");
+  legacyUrl.searchParams.set("fields", "code,product_name,generic_name,brands,serving_size,serving_quantity,nutriments,image_front_small_url,image_small_url,image_front_url,image_url");
   return fetchOpenFoodFacts(legacyUrl, cleaned, fetchImpl);
 }
 
@@ -166,6 +164,18 @@ function positiveNumber(value, allowZero = false) {
   const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed) || (allowZero ? parsed < 0 : parsed <= 0)) return null;
   return parsed;
+}
+
+function safeOpenFoodFactsImage(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(String(value));
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== "https:" || !(host === "openfoodfacts.org" || host.endsWith(".openfoodfacts.org"))) return "";
+    return url.href;
+  } catch {
+    return "";
+  }
 }
 
 function titleCase(value) {
