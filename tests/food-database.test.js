@@ -25,6 +25,8 @@ test("maps USDA nutrition to the labelled serving", () => {
   assert.equal(food.kcal, 200);
   assert.equal(food.protein, 5);
   assert.equal(food.serving, "50 g");
+  assert.match(food.description, /Example/);
+  assert.match(food.description, /50 g/);
   assert.equal(food.source, "USDA FoodData Central");
 });
 
@@ -33,8 +35,10 @@ test("maps Open Food Facts nutrition to the product serving", () => {
     code: "890123",
     product_name: "Sesame snack",
     brands: "Example Foods",
+    generic_name: "Crisp sesame and jaggery snack",
     serving_size: "30 g",
     serving_quantity: 30,
+    image_front_small_url: "https://images.openfoodfacts.org/images/products/890/123/front_en.3.200.jpg",
     nutriments: {
       "energy-kcal_100g": 500,
       proteins_100g: 10,
@@ -46,11 +50,23 @@ test("maps Open Food Facts nutrition to the product serving", () => {
   assert.equal(food.kcal, 150);
   assert.equal(food.protein, 3);
   assert.equal(food.serving, "30 g");
+  assert.match(food.image, /^https:\/\/images\.openfoodfacts\.org\//);
+  assert.match(food.description, /Crisp Sesame And Jaggery Snack/);
   assert.equal(food.source, "Open Food Facts");
 });
 
+test("rejects non-Open Food Facts product images", () => {
+  const food = mapOpenFoodFactsProduct({
+    code: "unsafe",
+    product_name: "Example food",
+    image_front_small_url: "https://tracker.example/image.jpg",
+    nutriments: { "energy-kcal_100g": 100 }
+  });
+  assert.equal(food.image, "");
+});
+
 test("food search requests only usable results and caps suggestions", async () => {
-  let requestedUrl = "";
+  const requestedUrls = [];
   const foods = Array.from({ length: 5 }, (_, index) => ({
     fdcId: index + 1,
     description: `Food ${index + 1}`,
@@ -60,12 +76,30 @@ test("food search requests only usable results and caps suggestions", async () =
   }));
   foods.push({ fdcId: 99, description: "No nutrition", foodNutrients: [] });
   const results = await searchFoodDatabase("1 bowl noodles", async url => {
-    requestedUrl = url;
-    return { ok: true, json: async () => ({ foods }) };
+    requestedUrls.push(url);
+    if (url.includes("api.nal.usda.gov")) return { ok: true, json: async () => ({ foods }) };
+    return { ok: true, json: async () => ({ products: [] }) };
   });
-  assert.equal(new URL(requestedUrl).searchParams.get("query"), "noodles");
+  const usdaUrl = requestedUrls.find(url => url.includes("api.nal.usda.gov"));
+  assert.equal(new URL(usdaUrl).searchParams.get("query"), "noodles");
   assert.equal(results.length, 3);
   assert.ok(results.every(food => food.kcal > 0));
+});
+
+test("photo-backed choices appear before text-only database matches", async () => {
+  const results = await searchFoodDatabase("mystery snack", async url => {
+    if (url.includes("api.nal.usda.gov")) return { ok: true, json: async () => ({ foods: [{
+      fdcId: 1, description: "Text only snack", servingSize: 100,
+      foodNutrients: [{ nutrientId: 1008, value: 120 }]
+    }] }) };
+    return { ok: true, json: async () => ({ products: [{
+      code: "photo", product_name: "Photographed snack", serving_size: "30 g", serving_quantity: 30,
+      image_front_small_url: "https://images.openfoodfacts.org/images/products/photo/front.1.200.jpg",
+      nutriments: { "energy-kcal_100g": 400 }
+    }] }) };
+  });
+  assert.equal(results[0].name, "Photographed Snack");
+  assert.ok(results[0].image);
 });
 
 test("falls back to the key-free Open Food Facts search when USDA is unavailable", async () => {
