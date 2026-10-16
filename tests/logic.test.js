@@ -81,6 +81,19 @@ test("extracts several foods written together without commas or conjunctions", (
   assert.equal(result.matched[2].name, "Plain curd (dahi)");
 });
 
+test("corrects a conservative food typo inside an unpunctuated meal", () => {
+  const result = parseMealText("fried ricce curd");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["fried-rice", "yogurt"]);
+  assert.deepEqual(result.matched.map(food => food.name), ["Fried rice", "Plain curd (dahi)"]);
+});
+
+test("does not rewrite a word when more than one food spelling is plausible", () => {
+  const result = parseMealText("mangoes dragon");
+  assert.equal(result.matched[0]?.id, "mango");
+  assert.deepEqual(result.unknown, ["dragon"]);
+});
+
 test("accepts a whole day in one message and keeps meal labels", () => {
   const result = parseMealText("Breakfast 2 eggs banana; lunch 2 roti petha sabzi curd; dinner 1 bowl dal rice");
   assert.deepEqual(result.unknown, []);
