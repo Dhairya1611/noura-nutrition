@@ -159,6 +159,8 @@ function normaliseFoodText(value) {
     .toLowerCase()
     .trim()
     .replace(/[_-]/g, " ")
+    .replace(/&/g, " and ")
+    .replace(/[^\p{L}\p{N}¼½¾⅓⅔/]+/gu, " ")
     .replace(/\b(?:paratha|parantha|prantha|parontha|prontha)s?\b/g, "paratha")
     .replace(/\b(?:ka|ki|ke|wala|waala|wali|with|of)\b/g, " ")
     .replace(/\s+/g, " ")
@@ -166,17 +168,15 @@ function normaliseFoodText(value) {
 }
 
 export function parseMealText(text) {
-  const segments = text.toLowerCase().replace(/\b(?:and|plus)\b/g, ",").split(/[,;+]/).map(cleanMealSegment).filter(Boolean);
+  const segments = String(text || "").split(/[,;+\n]+/).map(cleanMealSegment).filter(Boolean);
   const matched = [];
   const unknown = [];
+  let activeMealHint = null;
   for (const segment of segments) {
-    const quantity = parseMealQuantity(segment);
-    const food = findFood(segment);
-    if (!food) {
-      unknown.push(segment);
-      continue;
-    }
-    matched.push(scaleFood(food, quantity));
+    const parsed = parseMealSegment(segment, activeMealHint);
+    matched.push(...parsed.matched);
+    unknown.push(...parsed.unknown);
+    activeMealHint = parsed.mealHint;
   }
   return { matched, unknown };
 }
@@ -184,9 +184,125 @@ export function parseMealText(text) {
 function cleanMealSegment(segment) {
   return String(segment || "")
     .replace(/^\s*(?:(?:i|we)\s+(?:had|ate|drank|took)|my meal (?:was|included)|please add|log)\s+/i, "")
-    .replace(/\s+(?:(?:for|at|during)\s+)?(?:breakfast|brunch|lunch|dinner|supper|snack|today|tonight)\s*$/i, "")
     .replace(/^\s*(?:a|an)\s+(?=(?:bowl|cup|plate|glass|slice|handful|piece)\b)/i, "1 ")
     .trim();
+}
+
+const MEAL_HINTS = {
+  breakfast: "Breakfast",
+  brunch: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  supper: "Dinner",
+  snack: "Snack"
+};
+
+const NARRATIVE_TOKENS = new Set([
+  "and", "plus", "then", "also", "later", "for", "at", "during", "today", "tonight",
+  "morning", "afternoon", "evening", "night", "i", "we", "my", "meal", "was", "included",
+  "had", "ate", "drank", "took", "please", "add", "log", "the", "a", "an", ...Object.keys(MEAL_HINTS)
+]);
+
+const PORTION_TOKENS = /^(?:x|servings?|pieces?|pcs?|bowls?|katoris?|cups?|plates?|glasses?|slices?|handfuls?|rotis?|chapatis?|eggs?)$/i;
+const QUANTITY_TOKENS = /^(?:\d+(?:\.\d+)?|\d+\/\d+|[¼½¾⅓⅔]|one|two|three|four|five|six|seven|eight|nine|ten|half|quarter)$/i;
+
+function parseMealSegment(segment, initialMealHint = null) {
+  const normalised = normaliseFoodText(segment);
+  const tokens = normalised.split(" ").filter(Boolean);
+  const candidates = collectFoodCandidates(tokens);
+  const selected = selectFoodCandidates(candidates);
+  const consumed = new Array(tokens.length).fill(false);
+  const matched = [];
+  let activeMealHint = initialMealHint;
+  let cursor = 0;
+
+  for (const match of selected) {
+    const bridge = tokens.slice(cursor, match.start);
+    activeMealHint = mealHintFromTokens(bridge) || activeMealHint;
+    const bridgeIsContext = bridge.every(isMealBridgeToken);
+    const quantity = bridgeIsContext ? parseMealQuantity(bridge.join(" ")) : 1;
+    if (bridgeIsContext) markConsumed(consumed, cursor, match.start);
+    else markNarrativeTokens(consumed, tokens, cursor, match.start);
+    markConsumed(consumed, match.start, match.end);
+    const item = scaleFood(match.food, quantity);
+    if (activeMealHint) item.mealHint = activeMealHint;
+    matched.push(item);
+    cursor = match.end;
+  }
+
+  const tail = tokens.slice(cursor);
+  const trailingMealHint = mealHintFromTokens(tail);
+  markNarrativeTokens(consumed, tokens, cursor, tokens.length);
+  if (trailingMealHint && matched.length && !matched.at(-1).mealHint && /\b(?:for|at|during)\s+(?:breakfast|brunch|lunch|dinner|supper|snack)\b/i.test(segment)) {
+    matched.forEach(item => { item.mealHint = trailingMealHint; });
+  }
+  activeMealHint = trailingMealHint || activeMealHint;
+
+  return { matched, unknown: collectUnknownPhrases(tokens, consumed), mealHint: activeMealHint };
+}
+
+function collectFoodCandidates(tokens) {
+  const candidates = [];
+  for (const food of FOOD_LIBRARY) {
+    const aliases = new Set([food.name, ...food.aliases].map(normaliseFoodText).filter(Boolean));
+    for (const alias of aliases) {
+      const aliasTokens = alias.split(" ");
+      if (aliasTokens.length > tokens.length) continue;
+      for (let start = 0; start <= tokens.length - aliasTokens.length; start += 1) {
+        if (!aliasTokens.every((token, offset) => tokens[start + offset] === token)) continue;
+        candidates.push({ food, alias, start, end: start + aliasTokens.length, length: aliasTokens.length });
+      }
+    }
+  }
+  return candidates;
+}
+
+function selectFoodCandidates(candidates) {
+  const selected = [];
+  for (const candidate of candidates.sort((a, b) => a.start - b.start || b.length - a.length || b.alias.length - a.alias.length)) {
+    if (selected.some(match => candidate.start < match.end && candidate.end > match.start)) continue;
+    selected.push(candidate);
+  }
+  return selected.sort((a, b) => a.start - b.start);
+}
+
+function isMealBridgeToken(token) {
+  return NARRATIVE_TOKENS.has(token) || PORTION_TOKENS.test(token) || QUANTITY_TOKENS.test(token);
+}
+
+function mealHintFromTokens(tokens) {
+  for (let index = tokens.length - 1; index >= 0; index -= 1) {
+    if (MEAL_HINTS[tokens[index]]) return MEAL_HINTS[tokens[index]];
+  }
+  return null;
+}
+
+function markConsumed(consumed, start, end) {
+  for (let index = start; index < end; index += 1) consumed[index] = true;
+}
+
+function markNarrativeTokens(consumed, tokens, start, end) {
+  for (let index = start; index < end; index += 1) {
+    if (NARRATIVE_TOKENS.has(tokens[index])) consumed[index] = true;
+  }
+}
+
+function collectUnknownPhrases(tokens, consumed) {
+  const phrases = [];
+  let current = [];
+  const flush = () => {
+    if (current.length) phrases.push(current.join(" "));
+    current = [];
+  };
+  tokens.forEach((token, index) => {
+    if (consumed[index] || NARRATIVE_TOKENS.has(token)) {
+      flush();
+      return;
+    }
+    current.push(token);
+  });
+  flush();
+  return phrases;
 }
 
 function parseMealQuantity(segment) {
