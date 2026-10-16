@@ -408,18 +408,23 @@ export function scaleFood(food, servings = 1) {
   };
 }
 
+export function foodMatchesDiet(food, diet = "everything") {
+  const preference = String(diet || "everything").toLowerCase();
+  if (preference === "vegan") return food.tags.includes("vegan");
+  if (preference === "vegetarian") {
+    return !food.tags.includes("contains-egg") && food.tags.some(tag => tag === "vegetarian" || tag === "vegan");
+  }
+  return true;
+}
+
 export function recommendNext(totals, targets, profile = {}, limit = 8) {
   const remaining = {
     kcal: Math.max(0, targets.calories - totals.kcal),
     protein: Math.max(0, targets.protein - totals.protein),
     fiber: Math.max(0, targets.fiber - totals.fiber)
   };
-  const vegetarian = profile.diet === "vegetarian";
-  const vegan = profile.diet === "vegan";
   const candidates = FOOD_LIBRARY.filter(food => {
-    if (vegan && !food.tags.includes("vegan")) return false;
-    if (vegetarian && food.tags.includes("contains-egg")) return false;
-    if (vegetarian && !food.tags.some(tag => tag === "vegetarian" || tag === "vegan")) return false;
+    if (!foodMatchesDiet(food, profile.diet)) return false;
     return food.kcal <= remaining.kcal + 120 && !food.tags.includes("dessert") && !food.tags.includes("drink");
   });
   return candidates

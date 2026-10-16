@@ -444,6 +444,11 @@ function renderProfile() {
   const notification = getNotificationState(notificationContext());
   const goal = GOALS.find(item => item.id === state.profile.goal);
   const body = BODY_TYPES.find(item => item.id === state.profile.bodyType);
+  const dietCopy = state.profile.diet === "vegan"
+    ? "Only plant-based foods will appear in Coach suggestions."
+    : state.profile.diet === "vegetarian"
+      ? "Only vegetarian foods will appear; eggs, meat, and fish are excluded."
+      : "Coach can suggest vegetarian, vegan, egg, meat, and fish options.";
   return `<section class="page profile-page">
     <div class="page-heading"><div><span class="eyebrow">Your settings</span><h1>Built around you.</h1><p>Adjust your goal, diet, targets, and meal reminders any time.</p></div></div>
     <div class="profile-grid">
@@ -464,8 +469,8 @@ function renderProfile() {
       </article>
       <article class="card diet-card">
         <span class="eyebrow">Food preference</span><h2>What works for you?</h2>
-        <div class="choice-chips">${[["everything", "Everything"], ["vegetarian", "Vegetarian"], ["vegan", "Vegan"]].map(([value, label]) => `<button class="${state.profile.diet === value ? "active" : ""}" data-diet="${value}">${label}</button>`).join("")}</div>
-        <p>This filters coach recommendations. It does not hide foods from manual search.</p>
+        <div class="choice-chips">${[["everything", "Non-vegetarian"], ["vegetarian", "Vegetarian"], ["vegan", "Vegan"]].map(([value, label]) => `<button class="${state.profile.diet === value ? "active" : ""}" data-diet="${value}">${label}</button>`).join("")}</div>
+        <p><strong>${dietCopy}</strong> This filters Coach recommendations only; manual food search remains complete.</p>
       </article>
       <article class="card privacy-card">
         <div class="privacy-mark">${icon("shield", 27)}</div><div><span class="eyebrow">Account privacy</span><h2>Your meals stay yours.</h2><p>Your profile, logs, reminders, and this device’s encrypted push endpoint are stored in your private account. Row-level security limits access to the signed-in user. Food photos are still processed on-device.</p><button class="danger-link" data-action="reset-data">Delete my nutrition data</button></div>

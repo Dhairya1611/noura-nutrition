@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  adjustReminderTime, calculateDayScore, calculateTargets, chartGeometry, chartSeries, findFood, findVisualFood, formatFoodPortion, formatReminderTime,
+  adjustReminderTime, calculateDayScore, calculateTargets, chartGeometry, chartSeries, findFood, findVisualFood, foodMatchesDiet, formatFoodPortion, formatReminderTime,
   macroStatus, parseMealText, recommendNext, reminderTimeParts, setReminderPeriod, totalsForDate
 } from "../src/logic.js";
 import { FOOD_LIBRARY } from "../src/data.js";
@@ -277,6 +277,24 @@ test("coach respects vegan preference", () => {
   const recs = recommendNext({ kcal: 500, protein: 20, carbs: 50, fat: 15, fiber: 5 }, { calories: 2000, protein: 120, carbs: 250, fat: 65, fiber: 30 }, { diet: "vegan" });
   assert.equal(recs.length, 8);
   assert.ok(recs.every(food => food.tags.includes("vegan")));
+});
+
+test("food preferences enforce non-vegetarian, vegetarian, and vegan rules", () => {
+  const chicken = findFood("grilled chicken");
+  const paneer = findFood("paneer tikka");
+  const tofu = findFood("grilled tofu");
+  const egg = findFood("boiled egg");
+
+  assert.ok([chicken, paneer, tofu, egg].every(food => foodMatchesDiet(food, "everything")));
+  assert.ok([chicken, paneer, tofu, egg].every(food => foodMatchesDiet(food, "omnivore")));
+  assert.equal(foodMatchesDiet(chicken, "vegetarian"), false);
+  assert.equal(foodMatchesDiet(egg, "vegetarian"), false);
+  assert.equal(foodMatchesDiet(paneer, "vegetarian"), true);
+  assert.equal(foodMatchesDiet(tofu, "vegetarian"), true);
+  assert.equal(foodMatchesDiet(chicken, "vegan"), false);
+  assert.equal(foodMatchesDiet(paneer, "vegan"), false);
+  assert.equal(foodMatchesDiet(egg, "vegan"), false);
+  assert.equal(foodMatchesDiet(tofu, "vegan"), true);
 });
 
 test("coach excludes eggs from vegetarian suggestions", () => {
