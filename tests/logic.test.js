@@ -168,6 +168,16 @@ test("recognises anjeer, Hindi dish phrasing, and specific aloo preparations", (
   assert.equal(findFood("boiled aloo")?.id, "potato");
 });
 
+test("keeps aloo gobhi together instead of logging boiled potato", () => {
+  const result = parseMealText("2 roti aloo gobhi");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["roti", "aloo-gobi"]);
+  assert.deepEqual(result.matched.map(food => food.kcal), [240, 180]);
+  assert.equal(result.matched.some(food => food.id === "potato"), false);
+  assert.equal(findFood("aloo gobhi ki sabzi")?.id, "aloo-gobi");
+  assert.equal(findFood("gobhi")?.id, "cauliflower");
+});
+
 test("recognises common paratha varieties and spelling variants", () => {
   const names = ["gobhi ka prantha", "mooli paranthas", "methi paratha", "pyaaz ka parantha", "mix veg paratha", "sattu parantha", "laccha paratha", "ajwain parantha", "anda paratha", "cheese parantha"];
   assert.deepEqual(names.map(name => findFood(name)?.id), ["gobi-paratha", "mooli-paratha", "methi-paratha", "pyaz-paratha", "mixed-veg-paratha", "sattu-paratha", "lachha-paratha", "ajwain-paratha", "egg-paratha", "cheese-paratha"]);
