@@ -242,6 +242,21 @@ test("recognises chole kulche as one combined dish", () => {
   assert.equal(findFood("kulcha")?.id, "kulcha");
 });
 
+test("keeps chaap biryani together and does not assume every biryani is chicken", () => {
+  const result = parseMealText("1 plate chaap biryani");
+  assert.deepEqual(result.unknown, []);
+  assert.equal(result.matched.length, 1);
+  assert.equal(result.matched[0].id, "chaap-biryani");
+  assert.equal(result.matched[0].name, "Soya chaap biryani");
+  assert.equal(result.matched[0].kcal, 650);
+  assert.equal(result.matched.some(food => food.id === "soya-chaap" || food.id === "chicken-biryani"), false);
+
+  assert.equal(parseMealText("सोया चाप बिरयानी").matched[0]?.id, "chaap-biryani");
+  assert.equal(findFood("chicken biryani")?.id, "chicken-biryani");
+  assert.equal(findFood("biryani")?.name, "Biryani (type not specified)");
+  assert.deepEqual(["veg biryani", "paneer biryani", "anda biryani", "mutton biryani"].map(name => findFood(name)?.id), ["vegetable-biryani", "paneer-biryani", "egg-biryani", "mutton-biryani"]);
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];

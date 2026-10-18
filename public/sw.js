@@ -1,4 +1,4 @@
-const CACHE = "noura-shell-v19";
+const CACHE = "noura-shell-v20";
 const ROOT = new URL("./", self.location.href).href;
 const SHELL_ASSETS = [
   "manifest.webmanifest",
