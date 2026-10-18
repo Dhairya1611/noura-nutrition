@@ -51,7 +51,8 @@ test("manual logging invites a complete meal or day in one message", async () =>
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /whole day in one message/);
   assert.match(main, /Commas are optional/);
-  assert.match(main, /2 roti petha sabzi curd/);
+  assert.match(main, /Hindi\/Hinglish/);
+  assert.match(main, /2 roti chawal dal/);
   assert.match(main, /food\.mealHint \|\| mealTypeForTime/);
 });
 

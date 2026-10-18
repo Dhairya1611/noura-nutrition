@@ -266,9 +266,9 @@ function renderScanMode() {
       <div class="manual-heading"><span class="manual-spark">✦</span><div><h2>Tell me in your own words</h2><p>I’ll repeat what I understood before anything is added.</p></div></div>
       <form id="manual-form">
         <label for="meal-text">Write it the way you would say it</label>
-        <textarea id="meal-text" name="meal" rows="4" placeholder="For example: “2 roti petha sabzi curd”" required>${escapeHtml(state.mealDraft)}</textarea>
-        <p class="input-help">Write one food, a whole meal, or your whole day in one message. Commas are optional; breakfast, lunch, dinner, and quantities are understood.</p>
-        <div class="examples"><span>Try:</span><button type="button" data-example="2 eggs banana toast">2 eggs banana toast</button><button type="button" data-example="Breakfast 2 eggs; lunch 2 roti petha sabzi curd; dinner dal rice">my whole day</button></div>
+        <textarea id="meal-text" name="meal" rows="4" placeholder="For example: “2 roti chawal dal” or “2 रोटी चावल दाल”" required>${escapeHtml(state.mealDraft)}</textarea>
+        <p class="input-help">Use English, Hindi/Hinglish, or देवनागरी. Write one food, a whole meal, or your whole day in one message. Commas are optional; breakfast, lunch, dinner, and quantities are understood.</p>
+        <div class="examples"><span>Try:</span><button type="button" data-example="2 roti chawal dal">2 roti chawal dal</button><button type="button" data-example="Breakfast 2 eggs; lunch 2 roti petha sabzi curd; dinner dal rice">my whole day</button></div>
         <button class="big-submit">Tell me what you heard ${icon("spark", 19)}</button>
       </form>
       ${renderMealConversation()}

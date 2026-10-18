@@ -81,6 +81,24 @@ test("extracts several foods written together without commas or conjunctions", (
   assert.equal(result.matched[2].name, "Plain curd (dahi)");
 });
 
+test("recognises chawal and a complete Hindi meal in Roman or Devanagari text", () => {
+  const roman = parseMealText("2 roti chawal dal");
+  assert.deepEqual(roman.unknown, []);
+  assert.deepEqual(roman.matched.map(food => food.id), ["roti", "rice", "dal"]);
+  assert.deepEqual(roman.matched.map(food => food.kcal), [240, 205, 210]);
+
+  const devanagari = parseMealText("२ रोटी चावल और दाल");
+  assert.deepEqual(devanagari.unknown, []);
+  assert.deepEqual(devanagari.matched.map(food => food.id), ["roti", "rice", "dal"]);
+  assert.equal(devanagari.matched[0].servings, 2);
+});
+
+test("recognises common Hindi and Hinglish food names", () => {
+  const names = ["kela", "seb", "nashpati", "doodh", "badam", "santra", "angoor", "papita", "tarbooz", "ananas", "tamatar", "pyaaz", "gajar", "palak", "matar", "makka"];
+  assert.deepEqual(names.map(name => findFood(name)?.id), ["banana", "apple", "pear", "milk", "almonds", "orange", "grapes", "papaya", "watermelon", "pineapple", "tomato", "onion", "carrots", "spinach", "peas", "corn"]);
+  assert.deepEqual(["केला", "सेब", "दूध", "बादाम", "खीरा", "आलू", "गोभी"].map(name => findFood(name)?.id), ["banana", "apple", "milk", "almonds", "cucumber", "potato", "cauliflower"]);
+});
+
 test("corrects a conservative food typo inside an unpunctuated meal", () => {
   const result = parseMealText("fried ricce curd");
   assert.deepEqual(result.unknown, []);

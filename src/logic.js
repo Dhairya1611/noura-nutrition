@@ -160,6 +160,7 @@ function baseNormaliseFoodText(value) {
   return String(value || "")
     .toLowerCase()
     .trim()
+    .replace(/[०-९]/g, digit => String("०१२३४५६७८९".indexOf(digit)))
     .replace(/[_-]/g, " ")
     .replace(/&/g, " and ")
     .replace(/[^\p{L}\p{N}¼½¾⅓⅔/]+/gu, " ")
@@ -261,7 +262,7 @@ const MEAL_HINTS = {
 const NARRATIVE_TOKENS = new Set([
   "and", "plus", "then", "also", "later", "for", "at", "during", "today", "tonight",
   "morning", "afternoon", "evening", "night", "i", "we", "my", "meal", "was", "included",
-  "had", "ate", "drank", "took", "please", "add", "log", "the", "a", "an", ...Object.keys(MEAL_HINTS)
+  "had", "ate", "drank", "took", "please", "add", "log", "the", "a", "an", "aur", "or", "और", ...Object.keys(MEAL_HINTS)
 ]);
 
 const PORTION_TOKENS = /^(?:x|servings?|pieces?|pcs?|bowls?|katoris?|cups?|plates?|glasses?|slices?|handfuls?|rotis?|chapatis?|eggs?)$/i;
