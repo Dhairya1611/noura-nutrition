@@ -229,6 +229,29 @@ test("recognises common regional and fasting thalis plus samak rice and fafda", 
   assert.equal(parseMealText("1 plate Gujarati fafda").matched[0]?.id, "fafda");
 });
 
+test("recognises raita as its own dish and preserves specific varieties", () => {
+  const result = parseMealText("raita, kheera raita and boondi raita");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["raita", "cucumber-raita", "boondi-raita"]);
+  assert.equal(result.matched[0].name, "Plain raita");
+  assert.equal(result.matched.some(food => food.id === "yogurt"), false);
+  assert.equal(findFood("लौकी रायता")?.id, "lauki-raita");
+});
+
+test("recognises common Navratri fasting foods in complete meal text", () => {
+  const result = parseMealText("sabudana khichdi kuttu ki puri makhana kheer fruit chaat");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["sabudana-khichdi", "kuttu-puri", "makhana-kheer", "fruit-chaat"]);
+  assert.deepEqual([
+    "samak khichdi", "sabudana vada", "kuttu roti", "singhara roti", "rajgira roti", "vrat wale aloo",
+    "arbi ki sabzi", "roasted makhana", "sabudana kheer", "shakarkandi chaat", "kuttu pakode", "singhara halwa", "rajgira ladoo"
+  ].map(name => findFood(name)?.id), [
+    "samak-khichdi", "sabudana-vada", "kuttu-roti", "singhara-roti", "rajgira-roti", "vrat-aloo",
+    "arbi-sabzi", "roasted-makhana", "sabudana-kheer", "sweet-potato-chaat", "kuttu-pakora", "singhara-halwa", "rajgira-ladoo"
+  ]);
+  assert.equal(parseMealText("कुट्टू की पूरी मखाना खीर फल चाट").unknown.length, 0);
+});
+
 test("recognises chole kulche as one combined dish", () => {
   const result = parseMealText("chole kulche");
   assert.deepEqual(result.unknown, []);
