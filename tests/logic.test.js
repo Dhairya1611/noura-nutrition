@@ -299,6 +299,26 @@ test("recognises common dim sum, dumpling, ramyeon, and ramyun spellings", () =>
   assert.deepEqual(devanagari.matched.map(food => food.id), ["dim-sum", "ramyeon", "ice-cream"]);
 });
 
+test("uses one-piece portions for dim sum and momos", () => {
+  const oneDimSum = parseMealText("1 dimsum").matched[0];
+  const fourDimSum = parseMealText("4 dimsums").matched[0];
+  assert.equal(oneDimSum.serving, "1 piece");
+  assert.equal(oneDimSum.servings, 1);
+  assert.equal(oneDimSum.kcal, 60);
+  assert.equal(formatFoodPortion(oneDimSum), "1 piece");
+  assert.equal(fourDimSum.servings, 4);
+  assert.equal(fourDimSum.kcal, 240);
+  assert.equal(formatFoodPortion(fourDimSum), "4 pieces");
+
+  const oneMomo = parseMealText("1 momo").matched[0];
+  const sixMomos = parseMealText("6 momos").matched[0];
+  assert.equal(oneMomo.serving, "1 momo");
+  assert.equal(oneMomo.kcal, 50);
+  assert.equal(sixMomos.servings, 6);
+  assert.equal(sixMomos.kcal, 300);
+  assert.equal(formatFoodPortion(sixMomos), "6 momos");
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
