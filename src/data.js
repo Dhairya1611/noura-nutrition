@@ -35,6 +35,8 @@ const HINDI_FOOD_ALIASES = {
   momos: ["मोमो", "मोमोज़", "मोमोज"],
   ramyeon: ["रम्योन", "राम्योन", "राम्युन", "कोरियन रामेन"],
   "ice-cream": ["आइस क्रीम"],
+  milkshake: ["मिल्कशेक", "मिल्क शेक"],
+  "ice-cream-shake": ["आइस क्रीम शेक"],
   khichdi: ["खिचड़ी", "खिचड़ी"],
   cucumber: ["kakdi", "खीरा", "ककड़ी", "ककड़ी"],
   almonds: ["badam", "badaam", "बादाम"],

@@ -178,6 +178,8 @@ const rows = [
   ["lassi", "Sweet lassi", "🥛", "1 glass", 250, 220, 8, 32, 7, 0, ["lassi", "sweet lassi", "mango lassi"], ["drink", "vegetarian", "indian"]],
   ["buttermilk", "Buttermilk", "🥛", "1 glass", 240, 80, 4, 10, 2, 0, ["buttermilk", "chaas", "chhach", "mattha"], ["drink", "vegetarian", "indian"]],
   ["coconut-water", "Coconut water", "🥥", "1 glass", 240, 46, 1.7, 9, 0.5, 2.6, ["coconut water", "nariyal pani"], ["drink", "vegan"]],
+  ["milkshake", "Milkshake", "🥤", "1 glass (350 ml)", 350, 380, 10, 54, 14, 1, ["milkshake", "milk shake", "dairy milkshake", "dairy shake"], ["drink", "dessert", "vegetarian"]],
+  ["ice-cream-shake", "Ice cream shake", "🥤", "1 tall glass (400 ml)", 400, 520, 11, 70, 22, 1, ["ice cream shake", "icecream shake", "ice cream milkshake", "ice cream milk shake", "milkshake with ice cream", "shake with ice cream", "thick shake", "thickshake", "vanilla ice cream shake", "chocolate ice cream shake", "strawberry ice cream shake"], ["drink", "dessert", "vegetarian"]],
   ["cola", "Cola", "🥤", "1 can", 330, 139, 0, 35, 0, 0, ["cola", "coke", "soft drink", "soda"], ["drink", "vegan"]],
   ["cheese", "Cheddar cheese", "🧀", "1 slice", 28, 113, 7, 0.4, 9.3, 0, ["cheese", "cheddar", "cheese slice"], ["protein", "vegetarian"]],
   ["raita", "Plain raita", "🥣", "1 small bowl", 150, 100, 5, 8, 5.5, 0.5, ["raita", "plain raita", "dahi raita", "yogurt raita"], ["protein", "lunch", "dinner", "vegetarian", "indian"]],

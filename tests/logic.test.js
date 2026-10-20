@@ -319,6 +319,21 @@ test("uses one-piece portions for dim sum and momos", () => {
   assert.equal(formatFoodPortion(sixMomos), "6 momos");
 });
 
+test("recognises ice cream shake as one complete drink", () => {
+  const result = parseMealText("Ice cream shake");
+  assert.deepEqual(result.unknown, []);
+  assert.equal(result.matched.length, 1);
+  assert.equal(result.matched[0].id, "ice-cream-shake");
+  assert.equal(result.matched[0].name, "Ice cream shake");
+  assert.equal(result.matched[0].kcal, 520);
+  assert.equal(result.matched.some(food => food.id === "ice-cream"), false);
+
+  assert.deepEqual(["icecream shake", "ice cream milkshake", "thickshake", "chocolate ice cream shake"].map(name => findFood(name)?.id), ["ice-cream-shake", "ice-cream-shake", "ice-cream-shake", "ice-cream-shake"]);
+  assert.equal(findFood("milkshake")?.id, "milkshake");
+  assert.equal(findFood("आइस क्रीम शेक")?.id, "ice-cream-shake");
+  assert.deepEqual(parseMealText("Dimsum Ramyeon Ice cream shake").matched.map(food => food.id), ["dim-sum", "ramyeon", "ice-cream-shake"]);
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
