@@ -280,6 +280,25 @@ test("keeps chaap biryani together and does not assume every biryani is chicken"
   assert.deepEqual(["veg biryani", "paneer biryani", "anda biryani", "mutton biryani"].map(name => findFood(name)?.id), ["vegetable-biryani", "paneer-biryani", "egg-biryani", "mutton-biryani"]);
 });
 
+test("recognises dimsum and ramyeon in an unpunctuated meal", () => {
+  const result = parseMealText("Dimsum Ramyeon Ice cream");
+  assert.deepEqual(result.unknown, []);
+  assert.deepEqual(result.matched.map(food => food.id), ["dim-sum", "ramyeon", "ice-cream"]);
+  assert.deepEqual(result.matched.map(food => food.name), ["Dim sum (type not specified)", "Korean ramyeon", "Ice cream"]);
+});
+
+test("recognises common dim sum, dumpling, ramyeon, and ramyun spellings", () => {
+  assert.deepEqual(["dim sum", "dimsums", "dumplings", "steamed dumplings"].map(name => findFood(name)?.id), ["dim-sum", "dim-sum", "dim-sum", "dim-sum"]);
+  assert.deepEqual(["ramyun", "ramyeon noodles", "korean ramen", "shin ramyun"].map(name => findFood(name)?.id), ["ramyeon", "ramyeon", "ramyeon", "ramyeon"]);
+  assert.equal(findFood("japanese ramen")?.id, "ramen");
+  assert.equal(findFood("veg dimsum")?.id, "vegetable-dim-sum");
+  assert.equal(findFood("chicken dim sum")?.id, "chicken-dim-sum");
+  assert.equal(findFood("momos")?.id, "momos");
+  const devanagari = parseMealText("डिमसम राम्युन आइस क्रीम");
+  assert.deepEqual(devanagari.unknown, []);
+  assert.deepEqual(devanagari.matched.map(food => food.id), ["dim-sum", "ramyeon", "ice-cream"]);
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
