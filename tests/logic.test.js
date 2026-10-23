@@ -334,6 +334,18 @@ test("recognises ice cream shake as one complete drink", () => {
   assert.deepEqual(parseMealText("Dimsum Ramyeon Ice cream shake").matched.map(food => food.id), ["dim-sum", "ramyeon", "ice-cream-shake"]);
 });
 
+test("recognises cutlet, mixed fruit juice, and paneer lababdar spelling variants", () => {
+  const result = parseMealText("cutlet, mixed fuit juice, panner labadaar");
+
+  assert.deepEqual(result.matched.map(food => food.id), ["vegetable-cutlet", "mixed-fruit-juice", "paneer-lababdar"]);
+  assert.deepEqual(result.unknown, []);
+  assert.equal(findFood("mixed fruit juice")?.id, "mixed-fruit-juice");
+  assert.equal(findFood("paneer lababdar")?.id, "paneer-lababdar");
+  assert.equal(findFood("पनीर लबाबदार")?.id, "paneer-lababdar");
+  assert.equal(findFood("मिक्स फ्रूट जूस")?.id, "mixed-fruit-juice");
+  assert.equal(findFood("वेज कटलेट")?.id, "vegetable-cutlet");
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
