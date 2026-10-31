@@ -7,6 +7,7 @@ import {
 } from "./logic.js";
 import { getNotificationState } from "./notifications.js";
 import { applicationServerKeyMatches, currentTimezone, pushIsSupported, pushSubscriptionRecord, urlBase64ToUint8Array } from "./push.js";
+import { macroLimitNotification, smartNotificationPreferences } from "./smart-notifications.js";
 import {
   cloudConfigured, createAccount, deleteCloudState, fetchCloudState, getCloudSession,
   onCloudAuthChange, registerPushSubscription, requestPasswordReset, saveCloudState, sendPushTest,
@@ -442,6 +443,7 @@ function renderCoach() {
 function renderProfile() {
   const target = targets();
   const notification = getNotificationState(notificationContext());
+  const smartNotifications = smartNotificationPreferences(state.profile);
   const goal = GOALS.find(item => item.id === state.profile.goal);
   const body = BODY_TYPES.find(item => item.id === state.profile.bodyType);
   const dietCopy = state.profile.diet === "vegan"
@@ -465,6 +467,20 @@ function renderProfile() {
         <p>Noura Push uses your device’s timezone to send meal reminders at the times below—even after the app or browser is closed.</p>
         <div class="notification-guidance ${notification.code}" role="status">${icon(notification.code === "granted" ? "check" : "bell", 19)}<div><strong>${notification.title}</strong><span>${notification.message}</span></div></div>
         <div class="reminder-list">${state.reminders.map(renderReminderEditor).join("")}</div>
+        <section class="smart-reminder-settings" aria-labelledby="smart-reminder-title">
+          <div class="smart-reminder-heading"><div><span class="eyebrow">Smart reminders</span><h3 id="smart-reminder-title">Nudges that respond to your day.</h3></div><span class="smart-badge">Personalised</span></div>
+          <div class="smart-reminder-option">
+            <div class="smart-reminder-copy"><span class="smart-reminder-icon">↻</span><div><strong>Come-back reminder</strong><small>If you have not opened Noura, send a gentle check-in without asking you to recreate missed days.</small></div></div>
+            <label class="switch-label" aria-label="${smartNotifications.inactivityEnabled ? "Disable" : "Enable"} come-back reminders"><input class="switch-input" type="checkbox" data-smart-toggle="inactivityEnabled" ${smartNotifications.inactivityEnabled ? "checked" : ""}><i class="switch"></i></label>
+            <div class="smart-reminder-controls ${smartNotifications.inactivityEnabled ? "" : "disabled"}"><label>After <select data-smart-setting="inactivityDays" ${smartNotifications.inactivityEnabled ? "" : "disabled"}>${[2, 3, 7, 14].map(days => `<option value="${days}" ${smartNotifications.inactivityDays === days ? "selected" : ""}>${days} days</option>`).join("")}</select></label><label>At <select data-smart-setting="inactivityTime" ${smartNotifications.inactivityEnabled ? "" : "disabled"}>${["09:00", "13:00", "18:30", "20:00"].map(time => `<option value="${time}" ${smartNotifications.inactivityTime === time ? "selected" : ""}>${formatReminderTime(time)}</option>`).join("")}</select></label></div>
+          </div>
+          <div class="smart-reminder-option">
+            <div class="smart-reminder-copy"><span class="smart-reminder-icon macro">◎</span><div><strong>Macro limit alert</strong><small>Send one calm daily summary when protein, carbs, or fat passes your chosen limit.</small></div></div>
+            <label class="switch-label" aria-label="${smartNotifications.macroEnabled ? "Disable" : "Enable"} macro limit alerts"><input class="switch-input" type="checkbox" data-smart-toggle="macroEnabled" ${smartNotifications.macroEnabled ? "checked" : ""}><i class="switch"></i></label>
+            <div class="smart-reminder-controls ${smartNotifications.macroEnabled ? "" : "disabled"}"><label>Notify at <select data-smart-setting="macroThreshold" ${smartNotifications.macroEnabled ? "" : "disabled"}>${[[1, "100% of target"], [1.1, "110% of target"], [1.2, "120% of target"]].map(([value, label]) => `<option value="${value}" ${smartNotifications.macroThreshold === value ? "selected" : ""}>${label}</option>`).join("")}</select></label></div>
+          </div>
+          <p class="smart-reminder-note">Smart alerts use your saved activity and nutrition totals. They are informational, not medical warnings, and each category is limited to avoid repeated notifications.</p>
+        </section>
         <button class="compact-button" data-action="enable-notifications" ${state.push.status === "connecting" ? "disabled" : ""}>${icon("bell", 16)} ${notification.action}</button>
       </article>
       <article class="card diet-card">
@@ -685,6 +701,11 @@ function wireAfterRender() {
   document.querySelectorAll("[data-action='cancel-reminder-time']").forEach(button => button.addEventListener("click", () => { state.reminderEditor = null; render(); }));
   document.querySelector("[data-action='save-reminder-time']")?.addEventListener("click", saveReminderTime);
   document.querySelectorAll("[data-reminder-toggle]").forEach(input => input.addEventListener("change", () => { updateReminder(input.dataset.reminderToggle, { enabled: input.checked }); render(); }));
+  document.querySelectorAll("[data-smart-toggle]").forEach(input => input.addEventListener("change", () => updateSmartNotificationPreference(input.dataset.smartToggle, input.checked)));
+  document.querySelectorAll("[data-smart-setting]").forEach(select => select.addEventListener("change", () => {
+    const key = select.dataset.smartSetting;
+    updateSmartNotificationPreference(key, key === "inactivityTime" ? select.value : Number(select.value));
+  }));
   document.querySelectorAll("[data-action='enable-notifications']").forEach(button => button.addEventListener("click", enableNotifications));
   document.querySelector("[data-action='restart-onboarding']")?.addEventListener("click", () => { state.onboarding = { ...state.profile }; state.onboardingStep = 1; state.profile = null; render(); });
   document.querySelector("[data-action='logout']")?.addEventListener("click", logout);
@@ -1222,6 +1243,7 @@ function addFoodLog(food) {
     meal: food.mealHint || mealTypeForTime(now), at: now.toISOString(), source: food.source || "catalogue"
   });
   persist();
+  void checkReminders();
   if (state.route !== "scan") showToast(`${food.name} added.`);
 }
 
@@ -1256,6 +1278,12 @@ function updateReminder(id, changes) {
   persist();
 }
 
+function updateSmartNotificationPreference(key, value) {
+  state.profile.notificationPreferences = { ...smartNotificationPreferences(state.profile), [key]: value };
+  persist();
+  render();
+}
+
 function saveReminderTime() {
   const draft = state.reminderEditor;
   const reminder = state.reminders.find(item => item.id === draft?.id);
@@ -1268,6 +1296,15 @@ function saveReminderTime() {
 async function checkReminders() {
   if (!("Notification" in window) || Notification.permission !== "granted" || !state.profile) return;
   if (serverPushConfigured && state.push.status === "connected") return;
+  const smart = smartNotificationPreferences(state.profile);
+  const macroAlert = macroLimitNotification(todayTotals(), targets(), smart);
+  if (macroAlert) {
+    const macroKey = `noura-reminded-${dayKey()}-smart-macro`;
+    if (!localStorage.getItem(macroKey)) {
+      localStorage.setItem(macroKey, "1");
+      await sendNotification(macroAlert.title, macroAlert.body, macroAlert.tag);
+    }
+  }
   const now = new Date();
   const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const reminder = state.reminders.find(item => item.enabled && item.time === time);
@@ -1275,13 +1312,13 @@ async function checkReminders() {
   const key = `noura-reminded-${dayKey()}-${reminder.id}`;
   if (localStorage.getItem(key)) return;
   localStorage.setItem(key, "1");
-  await sendNotification(`Before ${reminder.label.toLowerCase()}…`, "Take a quick photo or tell Noura what’s on your plate.");
+  await sendNotification(`Before ${reminder.label.toLowerCase()}…`, "Take a quick photo or tell Noura what’s on your plate.", `noura-${reminder.id}-${dayKey()}`);
 }
 
-async function sendNotification(title, body) {
+async function sendNotification(title, body, tag = "noura-meal") {
   if (Notification.permission !== "granted") throw new Error("Notification permission is not enabled.");
   const registration = await ensureServiceWorker();
-  if (registration) return registration.showNotification(title, { body, icon: assetUrl("notification-icon.png"), badge: assetUrl("notification-badge.png"), tag: "noura-meal" });
+  if (registration) return registration.showNotification(title, { body, icon: assetUrl("notification-icon.png"), badge: assetUrl("notification-badge.png"), tag });
   return new Notification(title, { body, icon: assetUrl("notification-icon.png") });
 }
 

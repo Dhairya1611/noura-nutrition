@@ -31,15 +31,19 @@ type DueReminder = SubscriptionRow & {
   user_id: string;
   reminder_id: string;
   reminder_label: string;
+  reminder_kind: "meal" | "inactivity" | "macro";
+  notification_title: string;
+  notification_body: string;
+  notification_tag: string;
   scheduled_for: string;
 };
 
 function pushPayload(reminder?: DueReminder) {
   const label = reminder?.reminder_label?.toLowerCase() || "your meal";
   return JSON.stringify({
-    title: reminder ? `Before ${label}…` : "Noura server test",
-    body: reminder ? "Take a quick photo or tell Noura what’s on your plate." : "Closed-app reminders are connected on this device.",
-    tag: reminder ? `noura-${reminder.reminder_id}-${reminder.scheduled_for.slice(0, 10)}` : "noura-push-test",
+    title: reminder ? reminder.notification_title || `Before ${label}…` : "Noura server test",
+    body: reminder ? reminder.notification_body || "Take a quick photo or tell Noura what’s on your plate." : "Closed-app reminders are connected on this device.",
+    tag: reminder ? reminder.notification_tag || `noura-${reminder.reminder_id}-${reminder.scheduled_for.slice(0, 10)}` : "noura-push-test",
     url: "https://dhairya1611.github.io/noura-nutrition/"
   });
 }

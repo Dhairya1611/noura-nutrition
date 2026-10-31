@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { applicationServerKeyMatches, pushSubscriptionRecord, urlBase64ToUint8Array } from "../src/push.js";
 
 const migrationUrl = new URL("../supabase/migrations/202610130001_noura_web_push.sql", import.meta.url);
+const smartMigrationUrl = new URL("../supabase/migrations/202611010001_noura_smart_notifications.sql", import.meta.url);
 const functionUrl = new URL("../supabase/functions/send-meal-reminders/index.ts", import.meta.url);
 
 test("converts a URL-safe VAPID key into the original bytes", () => {
@@ -40,5 +41,18 @@ test("push sender authenticates cron calls and signed-in server tests", async ()
   assert.match(source, /admin\.auth\.getUser\(token\)/);
   assert.match(source, /claim_noura_due_reminders/);
   assert.match(source, /\[404, 410\]/);
+  assert.match(source, /notification_title/);
+  assert.match(source, /notification_body/);
+});
+
+test("smart reminder migration combines general, inactivity, and macro notifications", async () => {
+  const sql = await readFile(smartMigrationUrl, "utf8");
+  assert.match(sql, /jsonb_array_elements\(settings\.reminders\)/);
+  assert.match(sql, /smart-inactivity/);
+  assert.match(sql, /last_seen_at/);
+  assert.match(sql, /notificationPreferences,inactivityDays/);
+  assert.match(sql, /smart-macro/);
+  assert.match(sql, /notificationPreferences,macroThreshold/);
+  assert.match(sql, /on conflict \(subscription_id, reminder_id, local_date\) do nothing/i);
 });
 
