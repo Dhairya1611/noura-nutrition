@@ -346,6 +346,23 @@ test("recognises cutlet, mixed fruit juice, and paneer lababdar spelling variant
   assert.equal(findFood("वेज कटलेट")?.id, "vegetable-cutlet");
 });
 
+test("recognises hazelnut cold coffee and common cold-coffee variants", () => {
+  const exact = parseMealText("hazelnut cold coffee");
+
+  assert.deepEqual(exact.unknown, []);
+  assert.deepEqual(exact.matched.map(food => food.id), ["hazelnut-cold-coffee"]);
+  assert.equal(exact.matched.some(food => food.id === "coffee" || food.id === "cold-coffee"), false);
+  assert.deepEqual([
+    "hazlenut iced coffee", "caramel cold coffee", "iced mocha", "vanilla frappe",
+    "chocolate iced coffee", "plain cold coffee", "cold brew"
+  ].map(name => findFood(name)?.id), [
+    "hazelnut-cold-coffee", "caramel-cold-coffee", "mocha-cold-coffee", "vanilla-cold-coffee",
+    "chocolate-cold-coffee", "cold-coffee", "cold-brew"
+  ]);
+  assert.equal(findFood("हेज़लनट कोल्ड कॉफी")?.id, "hazelnut-cold-coffee");
+  assert.equal(findFood("कोल्ड कॉफी")?.id, "cold-coffee");
+});
+
 test("ships an expanded catalogue across common food groups", () => {
   assert.ok(FOOD_LIBRARY.length >= 150);
   const examples = ["butter chicken", "aloo paratha", "pani puri", "mango", "broccoli", "lassi", "sushi", "gulab jamun"];
