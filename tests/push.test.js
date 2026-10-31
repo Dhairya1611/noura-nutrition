@@ -39,7 +39,7 @@ test("push sender authenticates cron calls and signed-in server tests", async ()
   const source = await readFile(functionUrl, "utf8");
   assert.match(source, /x-cron-secret/);
   assert.match(source, /admin\.auth\.getUser\(token\)/);
-  assert.match(source, /claim_noura_due_reminders/);
+  assert.match(source, /claim_noura_due_notifications/);
   assert.match(source, /\[404, 410\]/);
   assert.match(source, /notification_title/);
   assert.match(source, /notification_body/);
@@ -47,6 +47,8 @@ test("push sender authenticates cron calls and signed-in server tests", async ()
 
 test("smart reminder migration combines general, inactivity, and macro notifications", async () => {
   const sql = await readFile(smartMigrationUrl, "utf8");
+  assert.match(sql, /create or replace function public\.claim_noura_due_notifications\(\)/);
+  assert.doesNotMatch(sql, /drop function/i);
   assert.match(sql, /jsonb_array_elements\(settings\.reminders\)/);
   assert.match(sql, /smart-inactivity/);
   assert.match(sql, /last_seen_at/);

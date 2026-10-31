@@ -107,7 +107,7 @@ Deno.serve(async request => {
       return json({ ok: false, error: "Scheduled-call authentication failed" }, 401);
     }
 
-    const { data, error } = await admin.rpc("claim_noura_due_reminders");
+    const { data, error } = await admin.rpc("claim_noura_due_notifications");
     if (error) throw error;
     const reminders = (data || []) as DueReminder[];
     let sent = 0;

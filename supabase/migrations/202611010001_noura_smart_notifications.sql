@@ -1,6 +1,4 @@
-drop function if exists public.claim_noura_due_reminders();
-
-create or replace function public.claim_noura_due_reminders()
+create or replace function public.claim_noura_due_notifications()
 returns table (
   delivery_id bigint,
   subscription_id bigint,
@@ -181,5 +179,5 @@ as $$
     and due.scheduled_for = claimed.scheduled_for;
 $$;
 
-revoke all on function public.claim_noura_due_reminders() from public, anon, authenticated;
-grant execute on function public.claim_noura_due_reminders() to service_role;
+revoke all on function public.claim_noura_due_notifications() from public, anon, authenticated;
+grant execute on function public.claim_noura_due_notifications() to service_role;
